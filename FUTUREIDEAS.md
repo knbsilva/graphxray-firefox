@@ -27,3 +27,37 @@ The Firefox fork already generates an unsigned `.xpi` at `build/packages/graphxr
 - Unsigned `.xpi` files are not enough for standard Firefox installation.
 - Temporary local loading via `about:debugging#/runtime/this-firefox` remains the development path until signing is completed.
 - If this fork is intended for broader distribution, add a dedicated privacy policy before AMO submission.
+
+## Local SDK-Aware PowerShell Generator
+
+The current local PowerShell fallback is REST-based. It uses the captured HTTP interaction and emits a generic `Invoke-RestMethod` snippet.
+
+### Why this may be needed
+
+- The DevX backend currently fails for PowerShell snippet generation.
+- A local REST fallback keeps the extension usable, but it does not produce Graph PowerShell SDK-style snippets such as `Get-Mg*`, `Update-Mg*`, or `Invoke-MgGraphRequest`.
+- If long-term PowerShell support should match the "knowledge level" of Graph Explorer snippets, a richer local generator is the next logical step.
+
+### Possible implementation direction
+
+1. Keep the current REST fallback as the safe baseline.
+2. Add a separate local PowerShell generator layer that understands:
+   - Microsoft Graph metadata/OpenAPI
+   - Graph PowerShell SDK naming conventions
+   - OData path patterns, functions, actions, and query options
+3. Map captured requests to a richer local model:
+   - HTTP method
+   - Graph path
+   - path parameters
+   - query parameters
+   - request body
+4. Generate one of these outputs depending on coverage:
+   - preferred: Graph PowerShell SDK cmdlets
+   - fallback: `Invoke-MgGraphRequest`
+   - final fallback: raw `Invoke-RestMethod`
+5. Add diagnostics that identify which local generation strategy was used.
+
+### Tradeoff
+
+- This would improve PowerShell quality and reduce dependency on DevX.
+- It is substantially more complex than the current fallback and should be treated as a dedicated feature, not a small fix.
