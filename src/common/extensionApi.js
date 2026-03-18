@@ -97,6 +97,31 @@ const openExtensionOptionsPage = async () => {
   return undefined;
 };
 
+const downloadFile = async ({ url, filename, saveAs = true }) => {
+  if (!extensionApi?.downloads?.download) {
+    return null;
+  }
+
+  if (browserApi) {
+    return extensionApi.downloads.download({
+      url,
+      filename,
+      saveAs,
+    });
+  }
+
+  return wrapChromeCallback((callback) =>
+    extensionApi.downloads.download(
+      {
+        url,
+        filename,
+        saveAs,
+      },
+      callback
+    )
+  );
+};
+
 const getExtensionUrl = (path) => {
   if (!extensionApi?.runtime?.getURL) {
     return path;
@@ -152,6 +177,7 @@ export {
   getStorageLocal,
   queryTabs,
   openExtensionOptionsPage,
+  downloadFile,
   getExtensionUrl,
   getHostWebview,
   getDevtoolsApi,

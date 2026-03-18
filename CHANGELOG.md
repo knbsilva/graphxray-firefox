@@ -46,3 +46,10 @@
 - Simplified release and packaging guidance for the Firefox fork.
 - Updated documentation links to the new fork target.
 - Added `FUTUREIDEAS.md` to track the postponed AMO signing and verification flow.
+
+### Post-Fork Fixes
+
+- Added Firefox permission coverage for the external DevX snippet generation endpoint.
+- Added Firefox `downloads` permission and switched script saving to the WebExtensions downloads API with anchor fallback.
+- Fixed exported script assembly so saved files include generated batch snippets when present.
+- Prevented empty save/copy operations when no generated code is available yet.

@@ -33,7 +33,8 @@
     "https://portal.office.com/",
     "https://security.microsoft.com/",
     "https://graph.windows.net/",
-    "https://api.azrbac.mspim.azure.com/"
+    "https://api.azrbac.mspim.azure.com/",
+    "https://devxapi-func-prod-eastus.azurewebsites.net/"
   ],
   "icons": {
     "16": "img/icon-16.png",
@@ -42,7 +43,7 @@
   },
   "options_page": "options.html",
   "devtools_page": "dev.html",
-  "permissions": ["storage", "webRequest"],
+  "permissions": ["downloads", "storage", "webRequest"],
   "browser_specific_settings": {
     "gecko": {
       "id": "graph-x-ray@graphxray.local",

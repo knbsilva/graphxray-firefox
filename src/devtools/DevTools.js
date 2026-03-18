@@ -13,6 +13,7 @@ import { TooltipHost } from "@fluentui/react/lib/Tooltip";
 import DevToolsCommandBar from "../components/DevToolsCommandBar";
 import { Layer } from "@fluentui/react/lib/Layer";
 import {
+  downloadFile as downloadExtensionFile,
   getDevtoolsApi,
   getHostWebview,
   isFirefoxBrowser,
@@ -60,6 +61,10 @@ class DevTools extends React.Component {
 
   saveScript = () => {
     const script = this.getSaveScriptContent();
+    if (!script.trim()) {
+      console.warn("No generated code is available to save yet.");
+      return;
+    }
     const languageOpt = options.filter((opt) => {
       return opt.key === this.state.snippetLanguage;
     });
@@ -69,28 +74,62 @@ class DevTools extends React.Component {
 
   copyScript = () => {
     const script = this.getSaveScriptContent();
+    if (!script.trim()) {
+      console.warn("No generated code is available to copy yet.");
+      return;
+    }
     navigator.clipboard.writeText(script);
   };
 
   getSaveScriptContent() {
-    let script = "";
+    const sections = [];
+
     this.state.stack.forEach((request) => {
-      if (request.code) {
-        script += "\n\n" + request.code;
+      if (request.code && request.code.trim()) {
+        sections.push(request.code.trim());
+      }
+
+      if (request.batchCodeSnippets && request.batchCodeSnippets.length > 0) {
+        request.batchCodeSnippets.forEach((snippet) => {
+          if (snippet.code && snippet.code.trim()) {
+            sections.push(snippet.code.trim());
+          }
+        });
       }
     });
-    return script;
+
+    return sections.join("\n\n");
   }
 
-  downloadFile(content, filename) {
-    const element = document.createElement("a");
+  async downloadFile(content, filename) {
     const file = new Blob([content], {
       type: "text/plain",
     });
-    element.href = URL.createObjectURL(file);
+    const objectUrl = URL.createObjectURL(file);
+
+    try {
+      const downloadId = await downloadExtensionFile({
+        url: objectUrl,
+        filename,
+        saveAs: true,
+      });
+
+      if (downloadId !== null && downloadId !== undefined) {
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+        return;
+      }
+    } catch (error) {
+      console.log("downloads.download failed, falling back to anchor click:", error);
+    }
+
+    const element = document.createElement("a");
+    element.href = objectUrl;
     element.download = filename;
+    element.style.display = "none";
     document.body.appendChild(element);
     element.click();
+    document.body.removeChild(element);
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
   }
 
   addListenerGraph() {
