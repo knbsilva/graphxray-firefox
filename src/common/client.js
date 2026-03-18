@@ -45,9 +45,9 @@ const getPowershellCmd = async function (snippetLanguage, method, url, body) {
     });
     console.log("DevX responded");
     if (response.ok) {
-      const resp = response.text();
-      console.log("DevX-Reponse", resp);
-      return resp;
+      const responseText = await response.text();
+      console.log("DevX-Response", responseText);
+      return typeof responseText === "string" ? responseText : String(responseText);
     } else {
       const errorText = await response.text();
       const errorMsg = `DevXError: ${response.status} ${response.statusText} for ${method} ${url} - Response: ${errorText}`;
@@ -59,6 +59,7 @@ const getPowershellCmd = async function (snippetLanguage, method, url, body) {
       error.message || error
     }`;
     console.log(errorMsg, error);
+    return null;
   }
 };
 

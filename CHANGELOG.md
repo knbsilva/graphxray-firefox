@@ -53,3 +53,4 @@
 - Added Firefox `downloads` permission and switched script saving to the WebExtensions downloads API with anchor fallback.
 - Fixed exported script assembly so saved files include generated batch snippets when present.
 - Prevented empty save/copy operations when no generated code is available yet.
+- Fixed DevX snippet handling so generated code is awaited and stored as text instead of a pending Promise.
