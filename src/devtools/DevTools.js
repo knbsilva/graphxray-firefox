@@ -13,11 +13,19 @@ import { TooltipHost } from "@fluentui/react/lib/Tooltip";
 import DevToolsCommandBar from "../components/DevToolsCommandBar";
 import { Layer } from "@fluentui/react/lib/Layer";
 import {
+  addRuntimeMessageListener,
   downloadFile as downloadExtensionFile,
   getDevtoolsApi,
   getHostWebview,
   isFirefoxBrowser,
 } from "../common/extensionApi.js";
+import { saveDiagnosticModeEnabled } from "../common/storage.js";
+import {
+  buildDiagnosticEntry,
+  DIAGNOSTIC_LOG_MESSAGE_TYPE,
+  DIAGNOSTIC_MODE_STORAGE_KEY,
+  MAX_DIAGNOSTIC_LOG_ENTRIES,
+} from "../common/diagnostics.js";
 
 const theme = getTheme();
 
@@ -32,37 +40,95 @@ const options = [
   { key: "javascript", text: "JavaScript", fileExt: "js" },
   { key: "java", text: "Java", fileExt: "java" },
   { key: "objective-c", text: "Objective-C", fileExt: "c" },
-  { key: "go", text: "Go", fileExt: "go" },  
+  { key: "go", text: "Go", fileExt: "go" },
 ];
 
 class DevTools extends React.Component {
   constructor() {
     super();
-    // Load ultraXRayMode from localStorage, default to false
-    const savedUltraXRayMode = localStorage.getItem('graphxray-ultraXRayMode');
-    const ultraXRayMode = savedUltraXRayMode ? JSON.parse(savedUltraXRayMode) : false;
-    
+    const savedUltraXRayMode = localStorage.getItem("graphxray-ultraXRayMode");
+    const ultraXRayMode = savedUltraXRayMode
+      ? JSON.parse(savedUltraXRayMode)
+      : false;
+    const savedDiagnosticMode = localStorage.getItem(
+      DIAGNOSTIC_MODE_STORAGE_KEY
+    );
+    const diagnosticMode = savedDiagnosticMode
+      ? JSON.parse(savedDiagnosticMode)
+      : false;
+
     this.state = {
       stack: [],
+      diagnosticLogs: [],
+      diagnosticMode,
       snippetLanguage: "powershell",
-      ultraXRayMode: ultraXRayMode,
+      ultraXRayMode,
     };
   }
 
   componentDidMount() {
-    // Add listener when component mounts
+    this.syncDiagnosticModeState();
+    this.addDiagnosticLogListener();
     this.addListener();
     this.addListenerGraph();
   }
 
+  syncDiagnosticModeState = async () => {
+    await saveDiagnosticModeEnabled(this.state.diagnosticMode);
+  };
+
+  appendDiagnosticLog = (entry) => {
+    this.setState((previousState) => ({
+      diagnosticLogs: [...previousState.diagnosticLogs, entry].slice(
+        -MAX_DIAGNOSTIC_LOG_ENTRIES
+      ),
+    }));
+  };
+
+  recordDiagnosticEntry = (entry) => {
+    if (!this.state.diagnosticMode) {
+      return;
+    }
+
+    this.appendDiagnosticLog(buildDiagnosticEntry(entry));
+  };
+
+  recordDiagnostic = (
+    event,
+    details = {},
+    level = "info",
+    source = "devtools"
+  ) => {
+    this.recordDiagnosticEntry({
+      source,
+      event,
+      level,
+      details,
+    });
+  };
+
   clearStack = () => {
     this.setState({ stack: [] });
+  };
+
+  clearSession = () => {
+    this.setState({
+      stack: [],
+      diagnosticLogs: [],
+    });
   };
 
   saveScript = () => {
     const script = this.getSaveScriptContent();
     if (!script.trim()) {
       console.warn("No generated code is available to save yet.");
+      this.recordDiagnostic(
+        "save_script_skipped",
+        {
+          reason: "empty_script",
+        },
+        "warning"
+      );
       return;
     }
     const languageOpt = options.filter((opt) => {
@@ -70,15 +136,67 @@ class DevTools extends React.Component {
     });
     const fileName = "GraphXRaySession." + languageOpt[0].fileExt;
     this.downloadFile(script, fileName);
+    this.recordDiagnostic("save_script_requested", {
+      fileName,
+      language: this.state.snippetLanguage,
+      scriptLength: script.length,
+    });
   };
 
   copyScript = () => {
     const script = this.getSaveScriptContent();
     if (!script.trim()) {
       console.warn("No generated code is available to copy yet.");
+      this.recordDiagnostic(
+        "copy_script_skipped",
+        {
+          reason: "empty_script",
+        },
+        "warning"
+      );
       return;
     }
     navigator.clipboard.writeText(script);
+    this.recordDiagnostic("copy_script_requested", {
+      language: this.state.snippetLanguage,
+      scriptLength: script.length,
+    });
+  };
+
+  saveLogs = () => {
+    if (this.state.diagnosticLogs.length === 0) {
+      console.warn("No diagnostic logs are available to save yet.");
+      return;
+    }
+
+    const logPayload = {
+      generatedAt: new Date().toISOString(),
+      userAgent: navigator.userAgent,
+      modes: {
+        diagnosticMode: this.state.diagnosticMode,
+        ultraXRayMode: this.state.ultraXRayMode,
+        snippetLanguage: this.state.snippetLanguage,
+      },
+      stackSummary: this.state.stack.map((request, index) => ({
+        index,
+        displayRequestUrl: request.displayRequestUrl,
+        hasCode: Boolean(request.code),
+        codeLength: request.code ? request.code.length : 0,
+        batchSnippetCount: request.batchCodeSnippets
+          ? request.batchCodeSnippets.length
+          : 0,
+      })),
+      logs: this.state.diagnosticLogs,
+    };
+    const fileName = `GraphXRayDiagnostics-${new Date()
+      .toISOString()
+      .replace(/[:.]/g, "-")}.json`;
+
+    this.downloadFile(
+      JSON.stringify(logPayload, null, 2),
+      fileName,
+      "application/json"
+    );
   };
 
   getSaveScriptContent() {
@@ -101,9 +219,9 @@ class DevTools extends React.Component {
     return sections.join("\n\n");
   }
 
-  async downloadFile(content, filename) {
+  async downloadFile(content, filename, mimeType = "text/plain") {
     const file = new Blob([content], {
-      type: "text/plain",
+      type: mimeType,
     });
     const objectUrl = URL.createObjectURL(file);
 
@@ -119,7 +237,10 @@ class DevTools extends React.Component {
         return;
       }
     } catch (error) {
-      console.log("downloads.download failed, falling back to anchor click:", error);
+      console.log(
+        "downloads.download failed, falling back to anchor click:",
+        error
+      );
     }
 
     const element = document.createElement("a");
@@ -130,6 +251,21 @@ class DevTools extends React.Component {
     element.click();
     document.body.removeChild(element);
     setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+  }
+
+  addDiagnosticLogListener() {
+    addRuntimeMessageListener((message) => {
+      if (
+        message?.type !== DIAGNOSTIC_LOG_MESSAGE_TYPE ||
+        !message.payload ||
+        !this.state.diagnosticMode
+      ) {
+        return null;
+      }
+
+      this.appendDiagnosticLog(message.payload);
+      return null;
+    });
   }
 
   addListenerGraph() {
@@ -143,23 +279,57 @@ class DevTools extends React.Component {
       const msg = JSON.parse(event.data);
       if (msg.eventName === "GraphCall") {
         console.log("Showing graph call.");
+        this.recordDiagnostic("host_graph_call_received", {
+          eventName: msg.eventName,
+        });
         this.showRequest(msg);
       }
     });
   }
 
   async addRequestToStack(request, version, harEntry = null) {
-    console.log("DevTools - addRequestToStack called with:", request, version, harEntry);
-    const codeView = await getCodeView(
-      this.state.snippetLanguage,
+    console.log(
+      "DevTools - addRequestToStack called with:",
       request,
       version,
       harEntry
     );
+    this.recordDiagnostic("request_processing_started", {
+      method: request.method,
+      url: request.url,
+      hasHarEntry: Boolean(harEntry),
+      snippetLanguage: this.state.snippetLanguage,
+    });
+    const codeView = await getCodeView(
+      this.state.snippetLanguage,
+      request,
+      version,
+      harEntry,
+      this.recordDiagnosticEntry
+    );
     console.log("DevTools - getCodeView returned:", codeView);
     if (codeView) {
       this.setState({ stack: [...this.state.stack, codeView] });
+      this.recordDiagnostic("request_processing_completed", {
+        displayRequestUrl: codeView.displayRequestUrl,
+        hasCode: Boolean(codeView.code),
+        codeLength: codeView.code ? codeView.code.length : 0,
+        batchSnippetCount: codeView.batchCodeSnippets
+          ? codeView.batchCodeSnippets.length
+          : 0,
+      });
+      return;
     }
+
+    this.recordDiagnostic(
+      "request_processing_skipped",
+      {
+        method: request.method,
+        url: request.url,
+        reason: "code_view_null",
+      },
+      "warning"
+    );
   }
 
   addListener() {
@@ -175,8 +345,12 @@ class DevTools extends React.Component {
           isAllowedDomain(harEntry.request.url, this.state.ultraXRayMode)
         ) {
           const request = harEntry.request;
+          this.recordDiagnostic("network_request_finished", {
+            method: request.method,
+            url: request.url,
+            status: harEntry.response?.status,
+          });
 
-          // Pass both the request and the harEntry (which has getContent method)
           request._harEntry = harEntry;
 
           try {
@@ -195,7 +369,10 @@ class DevTools extends React.Component {
     console.log("DevTools - showRequest called with:", request, harEntry);
     if (request.url.includes("/$batch")) {
       console.log("Processing batch request - keeping as single unit");
-      // For batch requests, treat them as a single unit to preserve request/response matching
+      this.recordDiagnostic("batch_request_detected", {
+        method: request.method,
+        url: request.url,
+      });
       await this.addRequestToStack(request, "", harEntry);
     } else {
       await this.addRequestToStack(request, "", harEntry);
@@ -203,16 +380,45 @@ class DevTools extends React.Component {
   }
 
   onLanguageChange = (e, option) => {
-    this.setState({ snippetLanguage: option.key });
-    this.clearStack();
+    const previousLanguage = this.state.snippetLanguage;
+    this.setState({ snippetLanguage: option.key, stack: [] });
+    this.recordDiagnostic("language_changed", {
+      from: previousLanguage,
+      to: option.key,
+      stackCleared: true,
+    });
   };
 
   onUltraXRayToggle = (e, checked) => {
     this.setState({ ultraXRayMode: checked });
-    // Save to localStorage
-    localStorage.setItem('graphxray-ultraXRayMode', JSON.stringify(checked));
-    this.clearStack(); // Clear the stack when toggling mode
+    localStorage.setItem("graphxray-ultraXRayMode", JSON.stringify(checked));
+    this.clearStack();
+    this.recordDiagnostic("ultra_xray_toggled", {
+      enabled: checked,
+      stackCleared: true,
+    });
   };
+
+  onDiagnosticModeToggle = async (e, checked) => {
+    localStorage.setItem(DIAGNOSTIC_MODE_STORAGE_KEY, JSON.stringify(checked));
+    await saveDiagnosticModeEnabled(checked);
+
+    this.setState(
+      (previousState) => ({
+        diagnosticMode: checked,
+        diagnosticLogs: checked ? [] : previousState.diagnosticLogs,
+      }),
+      () => {
+        if (checked) {
+          this.recordDiagnostic("diagnostic_mode_enabled", {
+            snippetLanguage: this.state.snippetLanguage,
+            ultraXRayMode: this.state.ultraXRayMode,
+          });
+        }
+      }
+    );
+  };
+
   render() {
     const showFirefoxNote = isFirefoxBrowser();
 
@@ -226,8 +432,9 @@ class DevTools extends React.Component {
           >
             <AppHeader hideSettings={true}></AppHeader>
             <DevToolsCommandBar
-              clearStack={this.clearStack}
+              clearSession={this.clearSession}
               saveScript={this.saveScript}
+              saveLogs={this.saveLogs}
               copyScript={this.copyScript}
             ></DevToolsCommandBar>
           </div>
@@ -244,8 +451,17 @@ class DevTools extends React.Component {
             <h2>Graph Call Stack Trace</h2>
             <p>
               Displays the Graph API calls that are being made by the current
-              browser tab. Code conversions are only available for published Graph APIs.
-              Turn on <strong>Ultra X-Ray</strong> mode to see all API calls (open a <a href="https://github.com/merill/graphxray/issues" target="_blank" rel="noreferrer">GitHub issue</a> if there are admin portals or blades that are not being captured).
+              browser tab. Code conversions are only available for published
+              Graph APIs. Turn on <strong>Ultra X-Ray</strong> mode to see all
+              API calls (open a{" "}
+              <a
+                href="https://github.com/merill/graphxray/issues"
+                target="_blank"
+                rel="noreferrer"
+              >
+                GitHub issue
+              </a>{" "}
+              if there are admin portals or blades that are not being captured).
             </p>
             {showFirefoxNote && (
               <div
@@ -264,12 +480,14 @@ class DevTools extends React.Component {
                 been activated.
               </div>
             )}
-            <div style={{ 
-              display: "flex", 
-              alignItems: "flex-end", 
-              gap: "20px",
-              flexWrap: "wrap" 
-            }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "flex-end",
+                gap: "20px",
+                flexWrap: "wrap",
+              }}
+            >
               <Dropdown
                 placeholder="Select an option"
                 label="Select language"
@@ -278,13 +496,15 @@ class DevTools extends React.Component {
                 defaultSelectedKey={this.state.snippetLanguage}
                 onChange={this.onLanguageChange}
               />
-              
-              <div style={{ 
-                display: "flex", 
-                alignItems: "center",
-                gap: "8px",
-                marginBottom: "8px" // Align with dropdown bottom margin
-              }}>
+
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  marginBottom: "8px",
+                }}
+              >
                 <Toggle
                   label="Ultra X-Ray"
                   checked={this.state.ultraXRayMode}
@@ -293,15 +513,15 @@ class DevTools extends React.Component {
                   offText="Off"
                   styles={{
                     root: { marginBottom: 0 },
-                    label: { fontWeight: "600" }
+                    label: { fontWeight: "600" },
                   }}
                 />
                 <TooltipHost
                   content="Enables ultra mode which allows you to see API calls that are not publicly documented by Microsoft. These are meant for educational purposes. These endpoints should not be used in custom scripts as they are not supported by Microsoft and are only meant for internal use."
                   styles={{
                     root: {
-                      display: "inline-block"
-                    }
+                      display: "inline-block",
+                    },
                   }}
                 >
                   <IconButton
@@ -315,12 +535,61 @@ class DevTools extends React.Component {
                         color: "#666",
                         backgroundColor: "transparent",
                         border: "1px solid #ccc",
-                        borderRadius: "50%"
+                        borderRadius: "50%",
                       },
                       rootHovered: {
                         backgroundColor: "rgba(0, 0, 0, 0.05)",
-                        color: "#333"
-                      }
+                        color: "#333",
+                      },
+                    }}
+                  />
+                </TooltipHost>
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  marginBottom: "8px",
+                }}
+              >
+                <Toggle
+                  label="Diagnostic Mode"
+                  checked={this.state.diagnosticMode}
+                  onChange={this.onDiagnosticModeToggle}
+                  onText="On"
+                  offText="Off"
+                  styles={{
+                    root: { marginBottom: 0 },
+                    label: { fontWeight: "600" },
+                  }}
+                />
+                <TooltipHost
+                  content="Captures structured troubleshooting logs for Graph X-Ray, including request flow, snippet generation, and export events. Saved logs can include request payloads and generated code snippets."
+                  styles={{
+                    root: {
+                      display: "inline-block",
+                    },
+                  }}
+                >
+                  <IconButton
+                    iconProps={{ iconName: "DiagnosticDataBarTooltip" }}
+                    title="Diagnostic Mode Information"
+                    styles={{
+                      root: {
+                        minWidth: "24px",
+                        width: "24px",
+                        height: "24px",
+                        color: "#666",
+                        backgroundColor: "transparent",
+                        border: "1px solid #ccc",
+                        borderRadius: "50%",
+                      },
+                      rootHovered: {
+                        backgroundColor: "rgba(0, 0, 0, 0.05)",
+                        color: "#333",
+                      },
                     }}
                   />
                 </TooltipHost>

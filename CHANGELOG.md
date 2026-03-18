@@ -54,3 +54,5 @@
 - Fixed exported script assembly so saved files include generated batch snippets when present.
 - Prevented empty save/copy operations when no generated code is available yet.
 - Fixed DevX snippet handling so generated code is awaited and stored as text instead of a pending Promise.
+- Added a structured Diagnostic Mode with `Save logs` for Firefox troubleshooting.
+- Added diagnostic logging for DevTools, background request-body capture, DevX snippet generation, and export operations.

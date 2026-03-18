@@ -11,9 +11,15 @@ class DevToolsCommandBar extends React.Component {
         iconProps: { iconName: "Download" },
       },
       {
+        key: "diagnostics",
+        text: "Save logs",
+        onClick: this.props.saveLogs,
+        iconProps: { iconName: "DiagnosticDataBarTooltip" },
+      },
+      {
         key: "clear",
         text: "Clear session",
-        onClick: this.props.clearStack,
+        onClick: this.props.clearSession,
         iconProps: { iconName: "Delete" },
       },
     ];

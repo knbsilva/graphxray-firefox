@@ -1,11 +1,22 @@
 import {
+  getDiagnosticModeEnabled,
   getObjectFromLocalStorage,
   getRequestBodiesCache,
   saveObjectInLocalStorage,
   saveRequestBodiesCache,
 } from "../common/storage.js";
+import {
+  DIAGNOSTIC_LOG_MESSAGE_TYPE,
+  DIAGNOSTIC_MODE_STORAGE_KEY,
+  buildDiagnosticEntry,
+  createDiagnosticPreview,
+} from "../common/diagnostics.js";
 import { getAllDomainUrls } from "../common/domains.js";
-import { addRuntimeMessageListener, extensionApi } from "../common/extensionApi.js";
+import {
+  addRuntimeMessageListener,
+  extensionApi,
+  sendRuntimeMessage,
+} from "../common/extensionApi.js";
 
 const REQUEST_BODY_TTL_MS = 30 * 1000;
 const REQUEST_BODY_CACHE_LIMIT = 50;
@@ -70,8 +81,26 @@ export async function init() {
   // Store request bodies temporarily
   let requestBodies = [];
   let requestBodyWriteQueue = Promise.resolve();
+  let diagnosticModeEnabled = await getDiagnosticModeEnabled();
 
   const snapshotRequestBodies = () => pruneRequestBodies(requestBodies);
+  const emitDiagnosticLog = (event, details = {}, level = "info") => {
+    if (!diagnosticModeEnabled) {
+      return;
+    }
+
+    sendRuntimeMessage({
+      type: DIAGNOSTIC_LOG_MESSAGE_TYPE,
+      payload: buildDiagnosticEntry({
+        source: "background",
+        event,
+        level,
+        details,
+      }),
+    }).catch((error) => {
+      console.log("Could not send diagnostic log:", error);
+    });
+  };
 
   const persistRequestBodiesSnapshot = async () => {
     await saveRequestBodiesCache(snapshotRequestBodies());
@@ -92,6 +121,9 @@ export async function init() {
       .then(() => persistRequestBodiesSnapshot())
       .catch((error) => {
         console.log("Could not persist request body cache:", error);
+        emitDiagnosticLog("request_body_persist_failed", {
+          error: error?.message || String(error),
+        }, "error");
       });
   };
 
@@ -100,24 +132,52 @@ export async function init() {
 
     const inMemoryRequest = findRequestBodyMatch(requestBodies, requestDetails);
     if (inMemoryRequest) {
+      emitDiagnosticLog("request_body_cache_hit", {
+        cache: "memory",
+        url: requestDetails.url,
+        method: requestDetails.method,
+        bodyLength: inMemoryRequest.body ? inMemoryRequest.body.length : 0,
+      });
       return inMemoryRequest.body;
     }
 
-    const storedRequestBodies = pruneRequestBodies(await getRequestBodiesCache());
-    if (hasObjectChanged(await getRequestBodiesCache(), storedRequestBodies)) {
+    const cachedRequestBodies = await getRequestBodiesCache();
+    const storedRequestBodies = pruneRequestBodies(cachedRequestBodies);
+    if (hasObjectChanged(cachedRequestBodies, storedRequestBodies)) {
       await saveRequestBodiesCache(storedRequestBodies);
     }
 
     const storedRequestBody = findRequestBodyMatch(storedRequestBodies, requestDetails);
     if (storedRequestBody) {
       requestBodies = pruneRequestBodies([storedRequestBody, ...requestBodies]);
+      emitDiagnosticLog("request_body_cache_hit", {
+        cache: "storage",
+        url: requestDetails.url,
+        method: requestDetails.method,
+        bodyLength: storedRequestBody.body ? storedRequestBody.body.length : 0,
+      });
       return storedRequestBody.body;
     }
 
+    emitDiagnosticLog("request_body_cache_miss", {
+      url: requestDetails.url,
+      method: requestDetails.method,
+      startedDateTime: requestDetails.startedDateTime,
+    }, "warning");
     return "";
   };
 
   await ensureExtensionState();
+  extensionApi.storage?.onChanged?.addListener((changes, areaName) => {
+    if (
+      areaName === "local" &&
+      Object.prototype.hasOwnProperty.call(changes, DIAGNOSTIC_MODE_STORAGE_KEY)
+    ) {
+      diagnosticModeEnabled = Boolean(
+        changes[DIAGNOSTIC_MODE_STORAGE_KEY]?.newValue
+      );
+    }
+  });
 
   // Initialize storage
   extensionApi.runtime.onInstalled.addListener(async function (details) {
@@ -125,24 +185,35 @@ export async function init() {
       ...DEFAULT_EXTENSION_STATE,
       requestBodiesCache: [],
     });
+    emitDiagnosticLog("background_installed", {
+      reason: details?.reason,
+    });
   });
 
   // Capture request bodies for Graph API calls
   extensionApi.webRequest.onBeforeRequest.addListener(
     function (details) {
       console.log("Background - webRequest intercepted:", details.url, details.method);
+      emitDiagnosticLog("web_request_intercepted", {
+        url: details.url,
+        method: details.method,
+        hasRequestBody: Boolean(details.requestBody),
+      });
       if (details.requestBody) {
         // Store the request body temporarily with URL as key
         let bodyData = "";
+        let requestBodySource = "unknown";
         if (details.requestBody.raw) {
           // Handle raw body data
           const decoder = new TextDecoder("utf-8");
           bodyData = details.requestBody.raw
             .map(data => decoder.decode(data.bytes))
             .join("");
+          requestBodySource = "raw";
         } else if (details.requestBody.formData) {
           // Handle form data
           bodyData = JSON.stringify(details.requestBody.formData);
+          requestBodySource = "formData";
         }
         
         console.log("Background - extracted body data:", bodyData);
@@ -157,6 +228,13 @@ export async function init() {
 
           console.log("Background - stored body for URL:", details.url);
           console.log("Background - current stored bodies:", requestBodies.map((entry) => entry.url));
+          emitDiagnosticLog("request_body_captured", {
+            url: details.url,
+            method: details.method,
+            source: requestBodySource,
+            bodyLength: bodyData.length,
+            bodyPreview: createDiagnosticPreview(bodyData),
+          });
         }
       }
     },
@@ -169,19 +247,31 @@ export async function init() {
   // Send request body data to devtools when available
   addRuntimeMessageListener(async (request) => {
     console.log("Background - received message:", request);
+    if (request?.type === DIAGNOSTIC_LOG_MESSAGE_TYPE) {
+      return null;
+    }
+
     if (request.type === "GET_REQUEST_BODY" && request.url) {
       const body = await getRequestBodyFromCache(request);
       console.log("Background - returning body for URL:", request.url, "body:", body);
+      emitDiagnosticLog("request_body_lookup_completed", {
+        url: request.url,
+        method: request.method,
+        bodyLength: body ? body.length : 0,
+        bodyPreview: body ? createDiagnosticPreview(body) : null,
+      });
       return { body };
     }
 
     if (request.method === "start") {
       await saveObjectInLocalStorage({ isActive: true });
+      emitDiagnosticLog("extension_started");
       return { farewell: "Graph X-Ray started." };
     }
 
     if (request.method === "stop") {
       await saveObjectInLocalStorage({ isActive: false });
+      emitDiagnosticLog("extension_stopped");
       return { farewell: "Graph X-Ray stopped." };
     }
 

@@ -1,15 +1,44 @@
 import { parseGraphUrl, GRAPH_DOMAINS, isUltraXRayDomain } from "./domains.js";
+import { createDiagnosticPreview } from "./diagnostics.js";
 import { sendRuntimeMessage } from "./extensionApi.js";
 
 const devxEndPoint =
   "https://devxapi-func-prod-eastus.azurewebsites.net/api/graphexplorersnippets";
 
-const getPowershellCmd = async function (snippetLanguage, method, url, body) {
+const emitDiagnosticLog = (
+  diagnosticLogger,
+  event,
+  details = {},
+  level = "info",
+  source = "client"
+) => {
+  if (typeof diagnosticLogger === "function") {
+    diagnosticLogger({
+      source,
+      event,
+      level,
+      details,
+    });
+  }
+};
+
+const getPowershellCmd = async function (
+  snippetLanguage,
+  method,
+  url,
+  body,
+  diagnosticLogger = null
+) {
   console.log("Get code snippet from DevX:", url, method);
   
   // Check if the URL is from an Ultra X-Ray domain - if so, don't call devx
   if (isUltraXRayDomain(url)) {
     console.log("Skipping DevX call for Ultra X-Ray domain:", url);
+    emitDiagnosticLog(diagnosticLogger, "devx_skipped_ultra_xray", {
+      snippetLanguage,
+      method,
+      url,
+    });
     return null;
   }
   
@@ -35,6 +64,15 @@ const getPowershellCmd = async function (snippetLanguage, method, url, body) {
     devxSnippetUri = devxEndPoint + snippetParam + openApiParam;
   }
 
+  emitDiagnosticLog(diagnosticLogger, "devx_request_started", {
+    snippetLanguage,
+    method,
+    url,
+    endpoint: devxSnippetUri,
+    requestBodyLength: bodyText.length,
+    payloadPreview: createDiagnosticPreview(payload),
+  });
+
   try {
     const response = await fetch(devxSnippetUri, {
       headers: {
@@ -47,11 +85,34 @@ const getPowershellCmd = async function (snippetLanguage, method, url, body) {
     if (response.ok) {
       const responseText = await response.text();
       console.log("DevX-Response", responseText);
+      emitDiagnosticLog(diagnosticLogger, "devx_request_succeeded", {
+        snippetLanguage,
+        method,
+        url,
+        endpoint: devxSnippetUri,
+        status: response.status,
+        responseLength: responseText.length,
+        responsePreview: createDiagnosticPreview(responseText),
+      });
       return typeof responseText === "string" ? responseText : String(responseText);
     } else {
       const errorText = await response.text();
       const errorMsg = `DevXError: ${response.status} ${response.statusText} for ${method} ${url} - Response: ${errorText}`;
       console.log(errorMsg);
+      emitDiagnosticLog(
+        diagnosticLogger,
+        "devx_request_failed",
+        {
+          snippetLanguage,
+          method,
+          url,
+          endpoint: devxSnippetUri,
+          status: response.status,
+          statusText: response.statusText,
+          errorPreview: createDiagnosticPreview(errorText),
+        },
+        "error"
+      );
       return null;
     }
   } catch (error) {
@@ -59,11 +120,23 @@ const getPowershellCmd = async function (snippetLanguage, method, url, body) {
       error.message || error
     }`;
     console.log(errorMsg, error);
+    emitDiagnosticLog(
+      diagnosticLogger,
+      "devx_request_exception",
+      {
+        snippetLanguage,
+        method,
+        url,
+        endpoint: devxSnippetUri,
+        error: error?.message || String(error),
+      },
+      "error"
+    );
     return null;
   }
 };
 
-const getRequestBody = async function (request) {
+const getRequestBody = async function (request, diagnosticLogger = null) {
   let requestBody = "";
   
   console.log("getRequestBody - request object:", request);
@@ -78,6 +151,13 @@ const getRequestBody = async function (request) {
       requestBody = JSON.stringify(request.body);
     }
     console.log("getRequestBody - found body in request.body:", requestBody);
+    emitDiagnosticLog(diagnosticLogger, "request_body_resolved", {
+      url: request.url,
+      method: request.method,
+      source: "request.body",
+      bodyLength: requestBody.length,
+      bodyPreview: createDiagnosticPreview(requestBody),
+    });
     return requestBody;
   }
   
@@ -85,6 +165,13 @@ const getRequestBody = async function (request) {
   if (request.postData && request.postData.text) {
     requestBody = request.postData.text;
     console.log("getRequestBody - found body in postData:", requestBody);
+    emitDiagnosticLog(diagnosticLogger, "request_body_resolved", {
+      url: request.url,
+      method: request.method,
+      source: "request.postData.text",
+      bodyLength: requestBody.length,
+      bodyPreview: createDiagnosticPreview(requestBody),
+    });
     return requestBody;
   }
   
@@ -113,19 +200,46 @@ const getRequestBody = async function (request) {
         if (response && response.body) {
           requestBody = response.body;
           console.log("getRequestBody - found body from background script:", requestBody);
+          emitDiagnosticLog(diagnosticLogger, "request_body_resolved", {
+            url: request.url,
+            method: request.method,
+            source: "background",
+            requestedUrl: url,
+            bodyLength: requestBody.length,
+            bodyPreview: createDiagnosticPreview(requestBody),
+          });
           return requestBody;
         }
       }
     } catch (error) {
       console.log("Could not get request body from background script:", error);
+      emitDiagnosticLog(
+        diagnosticLogger,
+        "request_body_lookup_failed",
+        {
+          url: request.url,
+          method: request.method,
+          error: error?.message || String(error),
+        },
+        "warning"
+      );
     }
   }
   
   console.log("getRequestBody - final result (should only be REQUEST body):", requestBody);
+  emitDiagnosticLog(
+    diagnosticLogger,
+    "request_body_missing",
+    {
+      url: request.url,
+      method: request.method,
+    },
+    "warning"
+  );
   return requestBody;
 };
 
-const getResponseContent = async function (harEntry) {
+const getResponseContent = async function (harEntry, diagnosticLogger = null) {
   let responseContent = "";
   
   console.log("getResponseContent - harEntry:", harEntry);
@@ -156,6 +270,12 @@ const getResponseContent = async function (harEntry) {
       
       console.log("getResponseContent - found content in response.content.text:", responseContent);
       if (responseContent && responseContent.length > 0) {
+        emitDiagnosticLog(diagnosticLogger, "response_content_resolved", {
+          source: "harEntry.response.content.text",
+          status: harEntry.response.status,
+          contentLength: responseContent.length,
+          contentPreview: createDiagnosticPreview(responseContent),
+        });
         return responseContent;
       }
     }
@@ -169,10 +289,27 @@ const getResponseContent = async function (harEntry) {
         if (content) {
           responseContent = content;
           console.log("getResponseContent - found content from getResponseBody:", responseContent);
+          emitDiagnosticLog(diagnosticLogger, "response_content_resolved", {
+            source: "harEntry.getResponseBody",
+            status: harEntry.response.status,
+            contentLength: responseContent.length,
+            contentPreview: createDiagnosticPreview(responseContent),
+            meta,
+          });
           return responseContent;
         }
       } catch (error) {
         console.log("getResponseContent - getResponseBody failed:", error);
+        emitDiagnosticLog(
+          diagnosticLogger,
+          "response_content_lookup_failed",
+          {
+            source: "harEntry.getResponseBody",
+            status: harEntry.response.status,
+            error: error?.message || String(error),
+          },
+          "warning"
+        );
       }
     }
     
@@ -185,10 +322,27 @@ const getResponseContent = async function (harEntry) {
         if (content && content.length > 0) {
           responseContent = content;
           console.log("getResponseContent - found content from getContent:", responseContent.substring(0, 200) + "...");
+          emitDiagnosticLog(diagnosticLogger, "response_content_resolved", {
+            source: "harEntry.getContent",
+            status: harEntry.response.status,
+            contentLength: responseContent.length,
+            contentPreview: createDiagnosticPreview(responseContent),
+            meta,
+          });
           return responseContent;
         }
       } catch (error) {
         console.log("getResponseContent - getContent failed:", error);
+        emitDiagnosticLog(
+          diagnosticLogger,
+          "response_content_lookup_failed",
+          {
+            source: "harEntry.getContent",
+            status: harEntry.response.status,
+            error: error?.message || String(error),
+          },
+          "warning"
+        );
       }
     }
     
@@ -203,6 +357,14 @@ const getResponseContent = async function (harEntry) {
   }
   
   console.log("getResponseContent - final result:", responseContent);
+  emitDiagnosticLog(
+    diagnosticLogger,
+    "response_content_missing",
+    {
+      status: harEntry?.response?.status,
+    },
+    "warning"
+  );
   return responseContent;
 };
 
@@ -262,20 +424,50 @@ const getHarEntryResponseBody = async function (harEntry) {
   };
 };
 
-const getBatchCodeSnippets = async function (snippetLanguage, requestBody, baseUrl) {
+const getBatchCodeSnippets = async function (
+  snippetLanguage,
+  requestBody,
+  baseUrl,
+  diagnosticLogger = null
+) {
   console.log("Generating code snippets for batch request");
   
   if (!requestBody) {
+    emitDiagnosticLog(
+      diagnosticLogger,
+      "batch_snippets_skipped",
+      {
+        reason: "missing_request_body",
+        snippetLanguage,
+        baseUrl,
+      },
+      "warning"
+    );
     return [];
   }
   
   try {
     const batchData = JSON.parse(requestBody);
     if (!batchData.requests) {
+      emitDiagnosticLog(
+        diagnosticLogger,
+        "batch_snippets_skipped",
+        {
+          reason: "invalid_batch_structure",
+          snippetLanguage,
+          baseUrl,
+        },
+        "warning"
+      );
       return [];
     }
     
     const codeSnippets = [];
+    emitDiagnosticLog(diagnosticLogger, "batch_snippets_started", {
+      snippetLanguage,
+      baseUrl,
+      requestCount: batchData.requests.length,
+    });
     
     for (const request of batchData.requests) {
       console.log("Generating snippet for batch request:", request.id, request.method, request.url);
@@ -291,7 +483,8 @@ const getBatchCodeSnippets = async function (snippetLanguage, requestBody, baseU
         snippetLanguage,
         request.method,
         fullUrl,
-        requestBodyText
+        requestBodyText,
+        diagnosticLogger
       );
       
       if (code) {
@@ -305,20 +498,54 @@ const getBatchCodeSnippets = async function (snippetLanguage, requestBody, baseU
     }
     
     console.log("Generated", codeSnippets.length, "code snippets for batch request");
+    emitDiagnosticLog(diagnosticLogger, "batch_snippets_completed", {
+      snippetLanguage,
+      baseUrl,
+      generatedCount: codeSnippets.length,
+    });
     return codeSnippets;
   } catch (error) {
     console.log("Error generating batch code snippets:", error);
+    emitDiagnosticLog(
+      diagnosticLogger,
+      "batch_snippets_failed",
+      {
+        snippetLanguage,
+        baseUrl,
+        error: error?.message || String(error),
+      },
+      "error"
+    );
     return [];
   }
 };
 
-const getCodeView = async function (snippetLanguage, request, version, harEntry = null) {
+const getCodeView = async function (
+  snippetLanguage,
+  request,
+  version,
+  harEntry = null,
+  diagnosticLogger = null
+) {
   if (["OPTIONS"].includes(request.method)) {
+    emitDiagnosticLog(diagnosticLogger, "code_view_skipped", {
+      method: request.method,
+      url: request.url,
+      reason: "options_request",
+    });
     return null;
   }
   console.log("GetCodeView", snippetLanguage, request, harEntry);
-  const requestBody = await getRequestBody(request);
-  const responseContent = harEntry ? await getResponseContent(harEntry) : "";
+  emitDiagnosticLog(diagnosticLogger, "code_view_started", {
+    snippetLanguage,
+    method: request.method,
+    url: request.url,
+    hasHarEntry: Boolean(harEntry),
+  });
+  const requestBody = await getRequestBody(request, diagnosticLogger);
+  const responseContent = harEntry
+    ? await getResponseContent(harEntry, diagnosticLogger)
+    : "";
   
   let code = null;
   let batchCodeSnippets = [];
@@ -328,14 +555,20 @@ const getCodeView = async function (snippetLanguage, request, version, harEntry 
     console.log("Processing batch request for code generation");
     // Extract base URL for batch requests
     const baseUrl = request.url.split("/$batch")[0];
-    batchCodeSnippets = await getBatchCodeSnippets(snippetLanguage, requestBody, baseUrl);
+    batchCodeSnippets = await getBatchCodeSnippets(
+      snippetLanguage,
+      requestBody,
+      baseUrl,
+      diagnosticLogger
+    );
     
     // Also generate a code snippet for the main batch request
     code = await getPowershellCmd(
       snippetLanguage,
       request.method,
       version + request.url,
-      requestBody
+      requestBody,
+      diagnosticLogger
     );
   } else {
     // Regular single request
@@ -343,7 +576,8 @@ const getCodeView = async function (snippetLanguage, request, version, harEntry 
       snippetLanguage,
       request.method,
       version + request.url,
-      requestBody
+      requestBody,
+      diagnosticLogger
     );
   }
   
@@ -355,6 +589,17 @@ const getCodeView = async function (snippetLanguage, request, version, harEntry 
     batchCodeSnippets: batchCodeSnippets, // Add batch code snippets to the result
   };
   console.log("CodeView", codeView);
+  emitDiagnosticLog(diagnosticLogger, "code_view_completed", {
+    snippetLanguage,
+    method: request.method,
+    url: request.url,
+    hasCode: Boolean(code),
+    codeLength: code ? code.length : 0,
+    requestBodyLength: requestBody ? requestBody.length : 0,
+    responseContentLength: responseContent ? responseContent.length : 0,
+    batchSnippetCount: batchCodeSnippets.length,
+    codePreview: code ? createDiagnosticPreview(code) : null,
+  });
   return codeView;
 };
 export {

@@ -1,4 +1,5 @@
 import { getStorageLocal, setStorageLocal } from "./extensionApi.js";
+import { DIAGNOSTIC_MODE_STORAGE_KEY } from "./diagnostics.js";
 
 const REQUEST_BODIES_STORAGE_KEY = "requestBodiesCache";
 
@@ -30,6 +31,12 @@ const getRequestBodiesCache = async () =>
 const saveRequestBodiesCache = async (cache) =>
   await saveObjectInLocalStorage({
     [REQUEST_BODIES_STORAGE_KEY]: cache,
+  });
+const getDiagnosticModeEnabled = async () =>
+  Boolean(await getObjectFromLocalStorage(DIAGNOSTIC_MODE_STORAGE_KEY));
+const saveDiagnosticModeEnabled = async (enabled) =>
+  await saveObjectInLocalStorage({
+    [DIAGNOSTIC_MODE_STORAGE_KEY]: Boolean(enabled),
   });
 
 const addChoices = async (i = 1) => {
@@ -86,6 +93,8 @@ export {
   getContextSwitches,
   getRequestBodiesCache,
   saveRequestBodiesCache,
+  getDiagnosticModeEnabled,
+  saveDiagnosticModeEnabled,
   addClicks,
   addConcepts,
   addChoices,
