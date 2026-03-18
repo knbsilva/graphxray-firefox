@@ -16,6 +16,7 @@ require('../config/env');
 
 
 const fs = require('fs');
+const path = require('path');
 const chalk = require('react-dev-utils/chalk');
 const webpack = require('webpack');
 const WebpackDevServer = require('webpack-dev-server');
@@ -35,6 +36,9 @@ const react = require(require.resolve('react', { paths: [paths.appPath] }));
 const env = getClientEnvironment();
 const useYarn = fs.existsSync(paths.yarnLockFile);
 const isInteractive = process.stdout.isTTY;
+const devBuildFolder = path
+  .relative(paths.appPath, paths.devAppBuild)
+  .replace(/\\/g, '/');
 
 // Warn and crash if required files are missing
 if (
@@ -100,7 +104,7 @@ checkBrowsers(paths.appPath, isInteractive)
     const tscCompileOnError = process.env.TSC_COMPILE_ON_ERROR === 'true';
     const urls = {
       ...prepareUrls(protocol, HOST, port),
-      localUrlForTerminal: 'Unpack your extension from /dev into your browser',
+      localUrlForTerminal: `Unpack your ${paths.browserTarget} extension from /${devBuildFolder} into your browser`,
       lanUrlForTerminal: '',
     };
     const devSocket = {
@@ -132,7 +136,11 @@ checkBrowsers(paths.appPath, isInteractive)
         clearConsole();
       }
 
-      console.log(chalk.cyan('Starting the development server...\n'));
+      console.log(
+        chalk.cyan(
+          `Starting the ${paths.browserTarget} development server...\n`
+        )
+      );
     });
 
     ['SIGINT', 'SIGTERM'].forEach(function (sig) {

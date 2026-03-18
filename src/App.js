@@ -9,6 +9,11 @@ import {
   getCurrentMetrics,
   getStack,
 } from "./common/storage.js";
+import {
+  getHostWebview,
+  isFirefoxBrowser,
+  sendRuntimeMessage,
+} from "./common/extensionApi.js";
 import { openOptionsPage } from "./components/CommandMenu.js";
 
 const theme = getTheme();
@@ -69,10 +74,11 @@ class App extends React.Component {
   };
 
   addListener() {
-    if (!window.chrome.webview) {
+    const hostWebview = getHostWebview();
+    if (!hostWebview) {
       return;
     }
-    window.chrome.webview.addEventListener("message", (event) => {
+    hostWebview.addEventListener("message", (event) => {
       console.log("Got message from host!");
       console.log(event.data);
     });
@@ -82,26 +88,28 @@ class App extends React.Component {
     this.setState({ isActive: !this.state.isActive });
 
     if (this.state.isActive) {
-      chrome.runtime.sendMessage(
-        {
-          method: "start",
-        },
-        function (response) {
-          console.log(response.farewell);
-        }
-      );
+      sendRuntimeMessage({
+        method: "start",
+      })
+        .then((response) => {
+          if (response?.farewell) {
+            console.log(response.farewell);
+          }
+        })
+        .catch((error) => {
+          console.log("Could not send start message:", error);
+        });
 
       saveObjectInLocalStorage({
         isActive: this.state.isActive,
         contextSwitches: 0,
       });
     } else {
-      chrome.runtime.sendMessage(
-        {
-          method: "stop",
-        },
-        function (response) {}
-      );
+      sendRuntimeMessage({
+        method: "stop",
+      }).catch((error) => {
+        console.log("Could not send stop message:", error);
+      });
       saveObjectInLocalStorage({
         isActive: this.state.isActive,
       });
@@ -109,6 +117,8 @@ class App extends React.Component {
   };
 
   render() {
+    const showFirefoxNote = isFirefoxBrowser();
+
     return (
       <div className="App" style={{ fontSize: FontSizes.size12 }}>
         <AppHeader></AppHeader>
@@ -125,6 +135,13 @@ class App extends React.Component {
               To view Graph calls in real-time open Developer Tools and switch
               to the Graph X-Ray panel.
             </p>
+            {showFirefoxNote && (
+              <p>
+                Firefox note: open the <b>Network</b> tab once before switching
+                to <b>Graph X-Ray</b>. Firefox only starts emitting DevTools
+                network events after the Network tool has been activated.
+              </p>
+            )}
             <PrimaryButton
               onClick={openOptionsPage}
               iconProps={{ iconName: "OpenInNewTab" }}

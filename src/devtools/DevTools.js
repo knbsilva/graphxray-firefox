@@ -12,6 +12,11 @@ import { IconButton } from "@fluentui/react/lib/Button";
 import { TooltipHost } from "@fluentui/react/lib/Tooltip";
 import DevToolsCommandBar from "../components/DevToolsCommandBar";
 import { Layer } from "@fluentui/react/lib/Layer";
+import {
+  getDevtoolsApi,
+  getHostWebview,
+  isFirefoxBrowser,
+} from "../common/extensionApi.js";
 
 const theme = getTheme();
 
@@ -89,10 +94,11 @@ class DevTools extends React.Component {
   }
 
   addListenerGraph() {
-    if (!window.chrome.webview) {
+    const hostWebview = getHostWebview();
+    if (!hostWebview) {
       return;
     }
-    window.chrome.webview.addEventListener("message", (event) => {
+    hostWebview.addEventListener("message", (event) => {
       console.log("Got message from host!");
       console.log(event.data);
       const msg = JSON.parse(event.data);
@@ -118,10 +124,11 @@ class DevTools extends React.Component {
   }
 
   addListener() {
-    if (!chrome.devtools) {
+    const devtoolsApi = getDevtoolsApi();
+    if (!devtoolsApi) {
       return;
     }
-    chrome.devtools.network.onRequestFinished.addListener(async (harEntry) => {
+    devtoolsApi.network.onRequestFinished.addListener(async (harEntry) => {
       try {
         if (
           harEntry.request &&
@@ -168,6 +175,8 @@ class DevTools extends React.Component {
     this.clearStack(); // Clear the stack when toggling mode
   };
   render() {
+    const showFirefoxNote = isFirefoxBrowser();
+
     return (
       <div className="App" style={{ fontSize: FontSizes.size12 }}>
         <Layer>
@@ -199,6 +208,23 @@ class DevTools extends React.Component {
               browser tab. Code conversions are only available for published Graph APIs.
               Turn on <strong>Ultra X-Ray</strong> mode to see all API calls (open a <a href="https://github.com/merill/graphxray/issues" target="_blank" rel="noreferrer">GitHub issue</a> if there are admin portals or blades that are not being captured).
             </p>
+            {showFirefoxNote && (
+              <div
+                style={{
+                  borderLeft: "4px solid #d97706",
+                  backgroundColor: "#fff7ed",
+                  color: "#7c2d12",
+                  padding: "10px 12px",
+                  marginBottom: "14px",
+                  borderRadius: "6px",
+                }}
+              >
+                Firefox note: open the <strong>Network</strong> tab once before
+                using <strong>Graph X-Ray</strong>. Firefox only starts raising
+                `devtools.network.onRequestFinished` after the Network tool has
+                been activated.
+              </div>
+            )}
             <div style={{ 
               display: "flex", 
               alignItems: "flex-end", 

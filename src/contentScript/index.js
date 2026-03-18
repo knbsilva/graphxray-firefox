@@ -1,4 +1,6 @@
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+import { addRuntimeMessageListener } from "../common/extensionApi.js";
+
+addRuntimeMessageListener(async (request) => {
   console.log("Request", request);
-  sendResponse("response");
+  return "response";
 });

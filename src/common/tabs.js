@@ -1,31 +1,11 @@
+import { queryTabs } from "./extensionApi.js";
+
 export const getActiveTab = async function () {
-  return new Promise((resolve, reject) => {
-    try {
-      chrome.tabs.query(
-        { active: true, currentWindow: true },
-        function (value) {
-          resolve(value);
-        }
-      );
-    } catch (ex) {
-      reject(ex);
-    }
-  });
+  return queryTabs({ active: true, currentWindow: true });
 };
 
 export const getStartTab = async function () {
-  return new Promise((resolve, reject) => {
-    try {
-      chrome.tabs.query(
-        {
-          active: true,
-        },
-        function (value) {
-          resolve(value);
-        }
-      );
-    } catch (ex) {
-      reject(ex);
-    }
+  return queryTabs({
+    active: true,
   });
 };

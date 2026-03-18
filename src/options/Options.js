@@ -3,6 +3,7 @@ import "./Options.css";
 import { AppHeader } from "../components/AppHeader";
 import { FontSizes } from "@fluentui/theme";
 import { getTheme } from "@fluentui/react";
+import { isFirefoxBrowser } from "../common/extensionApi.js";
 
 const theme = getTheme();
 class Options extends React.Component {
@@ -16,6 +17,8 @@ class Options extends React.Component {
   }
 
   render() {
+    const showFirefoxNote = isFirefoxBrowser();
+
     return (
       <div className="App" style={{ fontSize: FontSizes.size12 }}>
         <AppHeader hideSettings={true}></AppHeader>
@@ -51,6 +54,12 @@ class Options extends React.Component {
                     make changes in the portal to record and view the
                     corresponding Graph API calls and PowerShell commands
                   </li>
+                  {showFirefoxNote && (
+                    <li>
+                      in Firefox, open the <b>Network</b> tab once before
+                      switching to the <b>Graph X-Ray</b> panel
+                    </li>
+                  )}
                 </ul>
                 <img
                   src="./img/tutorial/graphxraydemo.gif"
@@ -97,6 +106,10 @@ class Options extends React.Component {
                       On Google Chrome open the menu from the top right then
                       select <b>More Tools</b> and click <b>Extensions</b>.{" "}
                     </li>
+                    <li>
+                      On Firefox you can load the temporary add-on from{" "}
+                      <b>about:debugging#/runtime/this-firefox</b>.
+                    </li>
                   </ul>
                   <img
                     src="./img/tutorial/Tutorial-1.png"
@@ -117,6 +130,12 @@ class Options extends React.Component {
                   Expand the tabs in Developer Tools and select the Graph X-Ray
                   panel.
                 </p>
+                {showFirefoxNote && (
+                  <p>
+                    In Firefox, click the <b>Network</b> tab once before moving
+                    to <b>Graph X-Ray</b>.
+                  </p>
+                )}
                 <p>
                   If you don't see the Graph X-Ray panel you may need to restart
                   your browser.

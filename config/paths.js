@@ -2,6 +2,7 @@
 
 const path = require('path');
 const fs = require('fs');
+const { getBrowserTarget } = require('./browserTarget');
 
 // Make sure any symlinks in the project folder are resolved:
 // https://github.com/facebook/create-react-app/issues/637
@@ -36,13 +37,21 @@ const resolveModule = (resolveFn, filePath) => {
 };
 
 // config after eject: we're in ./config/
+const browserTarget = getBrowserTarget();
+const isFirefoxTarget = browserTarget === 'firefox';
+
 module.exports = {
   dotenv: resolveApp('.env'),
   appPath: resolveApp('.'),
-  appBuild: resolveApp('build/graphxray'),
-  devAppBuild: resolveApp('dev'),
+  browserTarget,
+  appBuild: resolveApp(isFirefoxTarget ? 'build/firefox' : 'build/graphxray'),
+  devAppBuild: resolveApp(isFirefoxTarget ? 'dev/firefox' : 'dev'),
   appPublic: resolveApp('public'),
-  manifestJson: resolveApp('public/manifest.json'),
+  appChromiumManifestJson: resolveApp('public/manifest.chromium.json'),
+  appFirefoxManifestJson: resolveApp('public/manifest.firefox.json'),
+  manifestJson: resolveApp(
+    isFirefoxTarget ? 'public/manifest.firefox.json' : 'public/manifest.chromium.json'
+  ),
   appOptionsHtml: resolveApp('public/options.html'),
   appDevToolsHtml: resolveApp('public/devtools.html'),
   appPopupHtml: resolveApp('public/popup.html'),

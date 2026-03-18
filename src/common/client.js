@@ -1,4 +1,5 @@
 import { parseGraphUrl, GRAPH_DOMAINS, isUltraXRayDomain } from "./domains.js";
+import { sendRuntimeMessage } from "./extensionApi.js";
 
 const devxEndPoint =
   "https://devxapi-func-prod-eastus.azurewebsites.net/api/graphexplorersnippets";
@@ -86,35 +87,11 @@ const getRequestBody = async function (request) {
     return requestBody;
   }
   
-  // Try using getContent() method if available (for DevTools Network requests)
-  // IMPORTANT: This should only get REQUEST content, not response content
-  if (!requestBody && request._harEntry && typeof request._harEntry.getContent === 'function') {
-    console.log("getRequestBody - trying getContent() method on harEntry for REQUEST body");
-    try {
-      const content = await new Promise((resolve) => {
-        request._harEntry.getContent((content, encoding) => {
-          console.log("getRequestBody - getContent returned:", content, encoding);
-          resolve(content);
-        });
-      });
-      
-      // Only use this if it's actually request content (POST/PUT/PATCH methods typically have bodies)
-      if (content && ['POST', 'PUT', 'PATCH'].includes(request.method.toUpperCase())) {
-        requestBody = content;
-        console.log("getRequestBody - found REQUEST body from getContent:", requestBody);
-        return requestBody;
-      } else {
-        console.log("getRequestBody - ignoring getContent result for GET/DELETE request or empty content");
-      }
-    } catch (error) {
-      console.log("getRequestBody - getContent failed:", error);
-    }
-  }
-  
   // If no body found, try to get from background script using URL
   if (!requestBody && request.url) {
     console.log("getRequestBody - trying background script with URL:", request.url);
     try {
+      const startedDateTime = request._harEntry?.startedDateTime;
       // Generate URLs to try based on standard Graph domains
       const urlsToTry = [request.url];
       
@@ -125,9 +102,11 @@ const getRequestBody = async function (request) {
       });
       
       for (const url of urlsToTry) {
-        const response = await chrome.runtime.sendMessage({
+        const response = await sendRuntimeMessage({
           type: "GET_REQUEST_BODY",
-          url: url
+          url: url,
+          method: request.method,
+          startedDateTime: startedDateTime,
         });
         console.log("getRequestBody - background script response for", url, ":", response);
         if (response && response.body) {
@@ -184,12 +163,8 @@ const getResponseContent = async function (harEntry) {
     if (typeof harEntry.getResponseBody === 'function') {
       console.log("getResponseContent - trying getResponseBody() method");
       try {
-        const content = await new Promise((resolve) => {
-          harEntry.getResponseBody((content, encoding) => {
-            console.log("getResponseContent - getResponseBody returned:", content, encoding);
-            resolve(content);
-          });
-        });
+        const { content, meta } = await getHarEntryResponseBody(harEntry);
+        console.log("getResponseContent - getResponseBody returned:", content, meta);
         if (content) {
           responseContent = content;
           console.log("getResponseContent - found content from getResponseBody:", responseContent);
@@ -204,12 +179,8 @@ const getResponseContent = async function (harEntry) {
     if (typeof harEntry.getContent === 'function') {
       console.log("getResponseContent - trying getContent() method for response content");
       try {
-        const content = await new Promise((resolve) => {
-          harEntry.getContent((content, encoding) => {
-            console.log("getResponseContent - getContent returned:", content, "encoding:", encoding, "content length:", content ? content.length : 0);
-            resolve(content);
-          });
-        });
+        const { content, meta } = await getHarEntryContent(harEntry);
+        console.log("getResponseContent - getContent returned:", content, "meta:", meta, "content length:", content ? content.length : 0);
         if (content && content.length > 0) {
           responseContent = content;
           console.log("getResponseContent - found content from getContent:", responseContent.substring(0, 200) + "...");
@@ -232,6 +203,62 @@ const getResponseContent = async function (harEntry) {
   
   console.log("getResponseContent - final result:", responseContent);
   return responseContent;
+};
+
+const getHarEntryContent = async function (harEntry) {
+  const getContentResult =
+    harEntry.getContent.length === 0
+      ? harEntry.getContent()
+      : new Promise((resolve, reject) => {
+          try {
+            harEntry.getContent((content, meta) => {
+              resolve([content, meta]);
+            });
+          } catch (error) {
+            reject(error);
+          }
+        });
+
+  const resolved = await getContentResult;
+  if (Array.isArray(resolved)) {
+    return {
+      content: resolved[0],
+      meta: resolved[1],
+    };
+  }
+
+  return {
+    content: resolved,
+    meta: undefined,
+  };
+};
+
+const getHarEntryResponseBody = async function (harEntry) {
+  const getResponseBodyResult =
+    harEntry.getResponseBody.length === 0
+      ? harEntry.getResponseBody()
+      : new Promise((resolve, reject) => {
+          try {
+            harEntry.getResponseBody((content, meta) => {
+              resolve([content, meta]);
+            });
+          } catch (error) {
+            reject(error);
+          }
+        });
+
+  const resolved = await getResponseBodyResult;
+  if (Array.isArray(resolved)) {
+    return {
+      content: resolved[0],
+      meta: resolved[1],
+    };
+  }
+
+  return {
+    content: resolved,
+    meta: undefined,
+  };
 };
 
 const getBatchCodeSnippets = async function (snippetLanguage, requestBody, baseUrl) {
@@ -329,4 +356,10 @@ const getCodeView = async function (snippetLanguage, request, version, harEntry 
   console.log("CodeView", codeView);
   return codeView;
 };
-export { getPowershellCmd, getRequestBody, getResponseContent, getCodeView, getBatchCodeSnippets };
+export {
+  getPowershellCmd,
+  getRequestBody,
+  getResponseContent,
+  getCodeView,
+  getBatchCodeSnippets,
+};

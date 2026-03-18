@@ -1,0 +1,55 @@
+{
+  "manifest_version": 3,
+  "version": "1.0.5",
+  "short_name": "Graph X-Ray",
+  "name": "Graph X-Ray",
+  "description": "Graph X-Ray converts your Microsoft admin portal clicks into ready-to-use code in PowerShell, C#, Python, and more.",
+  "action": {
+    "default_title": "Graph X-Ray",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "scripts": ["background.bundle.js"]
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["contentScript.bundle.js"]
+    }
+  ],
+  "host_permissions": [
+    "https://portal.azure.com/",
+    "https://portal.azure.us/",
+    "https://graph.microsoft.com/",
+    "https://graph.microsoft.us/",
+    "https://microsoftgraph.chinacloudapi.cn/",
+    "https://dod-graph.microsoft.us/",
+    "https://main.iam.ad.ext.azure.com/",
+    "https://elm.iga.azure.com/",
+    "https://pds.iga.azure.com/",
+    "https://api.accessreviews.identitygovernance.azure.com/",
+    "https://management.azure.com/",
+    "https://admin.microsoft.com/",
+    "https://portal.office.com/",
+    "https://security.microsoft.com/",
+    "https://graph.windows.net/",
+    "https://api.azrbac.mspim.azure.com/"
+  ],
+  "icons": {
+    "16": "img/icon-16.png",
+    "48": "img/icon-48.png",
+    "128": "img/icon-128.png"
+  },
+  "options_page": "options.html",
+  "devtools_page": "dev.html",
+  "permissions": ["storage", "webRequest"],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "graph-x-ray@graphxray.local",
+      "strict_min_version": "121.0"
+    }
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
+}

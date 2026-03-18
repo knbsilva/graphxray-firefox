@@ -32,6 +32,8 @@ const measureFileSizesBeforeBuild =
   FileSizeReporter.measureFileSizesBeforeBuild;
 const printFileSizesAfterBuild = FileSizeReporter.printFileSizesAfterBuild;
 const useYarn = fs.existsSync(paths.yarnLockFile);
+const browserTargetLabel =
+  paths.browserTarget === 'firefox' ? 'Firefox' : 'Chromium';
 
 // These sizes are pretty large. We'll warn for bundles exceeding them.
 const WARN_AFTER_BUNDLE_GZIP_SIZE = 512 * 1024;
@@ -146,7 +148,7 @@ checkBrowsers(paths.appPath, isInteractive)
 
 // Create the production build and print the deployment instructions.
 function build(previousFileSizes) {
-  console.log('Creating an optimized production build...');
+  console.log(`Creating an optimized production build for ${browserTargetLabel}...`);
 
   const compiler = webpack(config);
   return new Promise((resolve, reject) => {

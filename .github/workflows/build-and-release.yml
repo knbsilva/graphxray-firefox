@@ -29,7 +29,7 @@ jobs:
     - name: Get current version
       id: get_version
       run: |
-        CURRENT_VERSION=$(node -p "require('./public/manifest.json').version")
+        CURRENT_VERSION=$(node -p "require('./package.json').version")
         echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
         echo "Current version: $CURRENT_VERSION"
 
@@ -49,31 +49,19 @@ jobs:
     - name: Update manifest.json version
       run: |
         NEW_VERSION="${{ steps.increment_version.outputs.new_version }}"
-        sed -i "s/\"version\": \".*\"/\"version\": \"$NEW_VERSION\"/" public/manifest.json
-        echo "Updated manifest.json to version $NEW_VERSION"
-
-    - name: Update package.json version
-      run: |
-        NEW_VERSION="${{ steps.increment_version.outputs.new_version }}"
         npm version $NEW_VERSION --no-git-tag-version
-        echo "Updated package.json to version $NEW_VERSION"
+        node scripts/syncManifestVersion.js $NEW_VERSION
+        echo "Updated package.json and Firefox manifest to version $NEW_VERSION"
 
-    - name: Build project
-      run: npm run build
-
-    - name: Create zip file
-      run: |
-        cd build
-        zip -r ../graphxray-v${{ steps.increment_version.outputs.new_version }}.zip graphxray/
-        cd ..
-        echo "Created zip file: graphxray-v${{ steps.increment_version.outputs.new_version }}.zip"
+    - name: Build and package artifacts
+      run: npm run package
 
     - name: Commit version changes
       if: github.event_name == 'push' && github.ref == 'refs/heads/main'
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
-        git add public/manifest.json package.json package-lock.json
+        git add public/manifest.firefox.json package.json package-lock.json
         git commit -m "Bump version to ${{ steps.increment_version.outputs.new_version }}" || exit 0
         git push
 
@@ -85,41 +73,51 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: v${{ steps.increment_version.outputs.new_version }}
-        release_name: Graph X-Ray v${{ steps.increment_version.outputs.new_version }}
+        release_name: Graph X-Ray Firefox v${{ steps.increment_version.outputs.new_version }}
         body: |
-          ## Graph X-Ray v${{ steps.increment_version.outputs.new_version }}
+          ## Graph X-Ray Firefox v${{ steps.increment_version.outputs.new_version }}
           
           ### Changes
           - Automated release from commit ${{ github.sha }}
           
           ### Installation
-            - Extract the contents of the `.zip` file.
-            - Open your browser and navigate to
-                - Microsoft Edge: `edge://extensions`
-                - Google Chrome: `chrome://extensions`
-            - Enable "Developer mode" by toggling the switch (usually in the bottom left or top right corner).
-            - Click on "Load unpacked" and select the extracted folder.          
+          - Firefox development:
+            - Download `graphxray-firefox-v${{ steps.increment_version.outputs.new_version }}.zip`
+            - Extract the archive, open `about:debugging#/runtime/this-firefox`, and load the included `manifest.json` as a temporary add-on
+          - Firefox installation:
+            - `graphxray-firefox-unsigned-v${{ steps.increment_version.outputs.new_version }}.xpi` is unsigned and must be signed by Mozilla before standard Firefox installation
 
         draft: false
         prerelease: false
 
-    - name: Upload Release Asset
+    - name: Upload Firefox Zip Release Asset
       if: github.event_name == 'push' && github.ref == 'refs/heads/main'
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./graphxray-v${{ steps.increment_version.outputs.new_version }}.zip
-        asset_name: graphxray-v${{ steps.increment_version.outputs.new_version }}.zip
+        asset_path: ./build/packages/graphxray-firefox-v${{ steps.increment_version.outputs.new_version }}.zip
+        asset_name: graphxray-firefox-v${{ steps.increment_version.outputs.new_version }}.zip
         asset_content_type: application/zip
+
+    - name: Upload Firefox XPI Release Asset
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./build/packages/graphxray-firefox-unsigned-v${{ steps.increment_version.outputs.new_version }}.xpi
+        asset_name: graphxray-firefox-unsigned-v${{ steps.increment_version.outputs.new_version }}.xpi
+        asset_content_type: application/x-xpinstall
 
     - name: Output build information
       run: |
         echo "✅ Build completed successfully!"
         echo "📦 Version: ${{ steps.increment_version.outputs.new_version }}"
-        echo "🏗️ Build artifacts created in build/graphxray/"
-        echo "📁 Zip file: graphxray-v${{ steps.increment_version.outputs.new_version }}.zip"
+        echo "🏗️ Firefox unpacked build: build/firefox/"
+        echo "📁 Packaged artifacts: build/packages/"
         if [ "${{ github.event_name }}" == "push" ] && [ "${{ github.ref }}" == "refs/heads/main" ]; then
           echo "🚀 Release created: https://github.com/${{ github.repository }}/releases/tag/v${{ steps.increment_version.outputs.new_version }}"
         else

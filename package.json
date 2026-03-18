@@ -1,5 +1,5 @@
 {
-  "name": "graph-x-ray",
+  "name": "graphxray-firefox",
   "version": "1.0.5",
   "private": true,
   "dependencies": {
@@ -78,12 +78,18 @@
     "write-file-webpack-plugin": "4.5.1"
   },
   "scripts": {
-    "start": "node --openssl-legacy-provider scripts/start.js",
-    "build": "node --openssl-legacy-provider scripts/build.js",
+    "start": "node --openssl-legacy-provider scripts/start.js --browser=firefox",
+    "start:firefox": "node --openssl-legacy-provider scripts/start.js --browser=firefox",
+    "build": "node --openssl-legacy-provider scripts/build.js --browser=firefox",
+    "build:firefox": "node --openssl-legacy-provider scripts/build.js --browser=firefox",
+    "sync:version": "node scripts/syncManifestVersion.js",
+    "package": "node scripts/package.js --browser=firefox",
+    "package:firefox": "node scripts/package.js --browser=firefox",
     "test": "node scripts/test.js"
   },
   "eslintConfig": {
     "globals": {
+      "browser": true,
       "chrome": true
     },
     "extends": [
@@ -101,9 +107,7 @@
       "not op_mini all"
     ],
     "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
+      "last 1 firefox version"
     ]
   },
   "devDependencies": {

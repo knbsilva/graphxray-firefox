@@ -1,27 +1,134 @@
 import {
+  getObjectFromLocalStorage,
+  getRequestBodiesCache,
   saveObjectInLocalStorage,
+  saveRequestBodiesCache,
 } from "../common/storage.js";
 import { getAllDomainUrls } from "../common/domains.js";
+import { addRuntimeMessageListener, extensionApi } from "../common/extensionApi.js";
+
+const REQUEST_BODY_TTL_MS = 30 * 1000;
+const REQUEST_BODY_CACHE_LIMIT = 50;
+const DEFAULT_EXTENSION_STATE = {
+  currentMetrics: {
+    urls: [],
+  },
+  contextSwitches: 0,
+  stack: [],
+  isActive: false,
+};
+
+const pruneRequestBodies = (requestBodies, now = Date.now()) =>
+  (requestBodies || [])
+    .filter((entry) => entry?.timestamp && now - entry.timestamp <= REQUEST_BODY_TTL_MS)
+    .sort((a, b) => b.timestamp - a.timestamp)
+    .slice(0, REQUEST_BODY_CACHE_LIMIT);
+
+const findRequestBodyMatch = (requestBodies, requestDetails) => {
+  const { url, method, startedDateTime } = requestDetails;
+  const startedAt = startedDateTime ? new Date(startedDateTime).getTime() : Date.now();
+
+  const exactMatches = requestBodies.filter((entry) => {
+    if (entry.url !== url) {
+      return false;
+    }
+
+    if (method && entry.method && entry.method !== method) {
+      return false;
+    }
+
+    return true;
+  });
+
+  if (exactMatches.length > 0) {
+    return exactMatches.sort(
+      (left, right) =>
+        Math.abs(left.timestamp - startedAt) - Math.abs(right.timestamp - startedAt)
+    )[0];
+  }
+
+  return requestBodies.find((entry) => entry.url === url) || null;
+};
+
+const hasObjectChanged = (left, right) =>
+  JSON.stringify(left) !== JSON.stringify(right);
+
+const ensureExtensionState = async () => {
+  const currentMetrics = await getObjectFromLocalStorage("currentMetrics");
+  if (currentMetrics) {
+    return;
+  }
+
+  await saveObjectInLocalStorage({
+      ...DEFAULT_EXTENSION_STATE,
+      requestBodiesCache: [],
+  });
+};
 
 // This needs to be an export due to typescript implementation limitation of needing '--isolatedModules' tsconfig
 export async function init() {
   // Store request bodies temporarily
-  const requestBodies = new Map();
+  let requestBodies = [];
+  let requestBodyWriteQueue = Promise.resolve();
+
+  const snapshotRequestBodies = () => pruneRequestBodies(requestBodies);
+
+  const persistRequestBodiesSnapshot = async () => {
+    await saveRequestBodiesCache(snapshotRequestBodies());
+  };
+
+  const persistRequestBody = (url, method, body, timestamp) => {
+    requestBodies = pruneRequestBodies([
+      {
+        url,
+        method,
+        body,
+        timestamp,
+      },
+      ...requestBodies,
+    ]);
+
+    requestBodyWriteQueue = requestBodyWriteQueue
+      .then(() => persistRequestBodiesSnapshot())
+      .catch((error) => {
+        console.log("Could not persist request body cache:", error);
+      });
+  };
+
+  const getRequestBodyFromCache = async (requestDetails) => {
+    requestBodies = pruneRequestBodies(requestBodies);
+
+    const inMemoryRequest = findRequestBodyMatch(requestBodies, requestDetails);
+    if (inMemoryRequest) {
+      return inMemoryRequest.body;
+    }
+
+    const storedRequestBodies = pruneRequestBodies(await getRequestBodiesCache());
+    if (hasObjectChanged(await getRequestBodiesCache(), storedRequestBodies)) {
+      await saveRequestBodiesCache(storedRequestBodies);
+    }
+
+    const storedRequestBody = findRequestBodyMatch(storedRequestBodies, requestDetails);
+    if (storedRequestBody) {
+      requestBodies = pruneRequestBodies([storedRequestBody, ...requestBodies]);
+      return storedRequestBody.body;
+    }
+
+    return "";
+  };
+
+  await ensureExtensionState();
 
   // Initialize storage
-  chrome.runtime.onInstalled.addListener(async function (details) {
+  extensionApi.runtime.onInstalled.addListener(async function (details) {
     await saveObjectInLocalStorage({
-      currentMetrics: {
-        urls: [],
-      },
-      contextSwitches: 0,
-      stack: [],
-      isActive: false,
+      ...DEFAULT_EXTENSION_STATE,
+      requestBodiesCache: [],
     });
   });
 
   // Capture request bodies for Graph API calls
-  chrome.webRequest.onBeforeRequest.addListener(
+  extensionApi.webRequest.onBeforeRequest.addListener(
     function (details) {
       console.log("Background - webRequest intercepted:", details.url, details.method);
       if (details.requestBody) {
@@ -41,32 +148,15 @@ export async function init() {
         console.log("Background - extracted body data:", bodyData);
         
         if (bodyData) {
-          // Use URL as key since devtools doesn't provide requestId
-          requestBodies.set(details.url, {
-            body: bodyData,
-            timestamp: Date.now()
-          });
-          
+          persistRequestBody(
+            details.url,
+            details.method,
+            bodyData,
+            details.timeStamp || Date.now()
+          );
+
           console.log("Background - stored body for URL:", details.url);
-          console.log("Background - current stored bodies:", Array.from(requestBodies.keys()));
-          
-          // Clean up old entries (keep only last 50 and entries from last 30 seconds)
-          const now = Date.now();
-          for (const [url, data] of requestBodies.entries()) {
-            if (now - data.timestamp > 30000) { // 30 seconds
-              requestBodies.delete(url);
-            }
-          }
-          
-          // Keep only the most recent 50 entries
-          if (requestBodies.size > 50) {
-            const entries = Array.from(requestBodies.entries());
-            entries.sort((a, b) => b[1].timestamp - a[1].timestamp);
-            requestBodies.clear();
-            entries.slice(0, 50).forEach(([url, data]) => {
-              requestBodies.set(url, data);
-            });
-          }
+          console.log("Background - current stored bodies:", requestBodies.map((entry) => entry.url));
         }
       }
     },
@@ -77,15 +167,25 @@ export async function init() {
   );
 
   // Send request body data to devtools when available
-  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  addRuntimeMessageListener(async (request) => {
     console.log("Background - received message:", request);
     if (request.type === "GET_REQUEST_BODY" && request.url) {
-      const data = requestBodies.get(request.url);
-      const body = data ? data.body : "";
+      const body = await getRequestBodyFromCache(request);
       console.log("Background - returning body for URL:", request.url, "body:", body);
-      sendResponse({ body: body });
-      // Don't clean up immediately, let it expire naturally
+      return { body };
     }
+
+    if (request.method === "start") {
+      await saveObjectInLocalStorage({ isActive: true });
+      return { farewell: "Graph X-Ray started." };
+    }
+
+    if (request.method === "stop") {
+      await saveObjectInLocalStorage({ isActive: false });
+      return { farewell: "Graph X-Ray stopped." };
+    }
+
+    return null;
   });
 }
 

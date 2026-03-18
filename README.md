@@ -1,9 +1,6 @@
-# Graph X-Ray: See the Code Behind the Clicks
+# Graph X-Ray Firefox
 
-| Microsoft Edge | Google Chrome |
-|-|-|
-| [![Microsoft Edge Add-ons](https://img.shields.io/badge/Microsoft_Edge-Install_Graph_X--Ray-0078d4?style=for-the-badge&logo=microsoft-edge&logoColor=white)](https://microsoftedge.microsoft.com/addons/detail/graph-xray/oplgganppgjhpihgciiifejplnnpodak) | [![Chrome Web Store](https://img.shields.io/badge/Google_Chrome-Install_Graph_X--Ray-4285f4?style=for-the-badge&logo=google-chrome&logoColor=white)](https://chrome.google.com/webstore/detail/graph-x-ray/gdhbldfajbedclijgcmmmobdbnjhnpdh) |
-|![Edge Web Store Users](https://img.shields.io/badge/Microsoft_Edge_--_Users-10k-gray?style=social&color=purple) ![Edge Web Store Stars](https://img.shields.io/chrome-web-store/stars/gdhbldfajbedclijgcmmmobdbnjhnpdh?style=social&label=Microsoft%20Edge%20-%20Rating&color=purple) | ![Chrome Web Store Users](https://img.shields.io/chrome-web-store/users/gdhbldfajbedclijgcmmmobdbnjhnpdh?style=social&label=Chrome%20-%20Users&color=purple) ![Chrome Web Store Stars](https://img.shields.io/chrome-web-store/stars/gdhbldfajbedclijgcmmmobdbnjhnpdh?style=social&label=Chrome%20-%20Rating&color=purple) |
+Firefox-focused fork of [merill/graphxray](https://github.com/merill/graphxray), adapted to run as a Firefox DevTools extension and to ship Firefox-specific build artifacts.
 
 Unlock the power of automation and learning in the Microsoft 365 ecosystem. Graph X-Ray is a developer tool that demystifies the Microsoft admin portals by revealing the exact Microsoft Graph API calls being made in the background as you work.
 
@@ -39,28 +36,32 @@ Stop spending hours digging through documentation to figure out how to automate 
 
 - **IT Consultants & Support Professionals** who need to quickly script solutions for clients.
 
-Supercharge your Microsoft 365 workflow. Install Graph X-Ray today and turn your clicks into code!
+Supercharge your Microsoft 365 workflow in Firefox and turn your clicks into code.
 
 ## Install
 
-Install the Graph X-Ray extension for your favorite browser.
-
-| Microsoft Edge | Google Chrome |
-|-|-|
-| [![Microsoft Edge Add-ons](https://img.shields.io/badge/Microsoft_Edge-Install_Graph_X--Ray-0078d4?style=for-the-badge&logo=microsoft-edge&logoColor=white)](https://microsoftedge.microsoft.com/addons/detail/graph-xray/oplgganppgjhpihgciiifejplnnpodak) | [![Chrome Web Store](https://img.shields.io/badge/Google_Chrome-Install_Graph_X--Ray-4285f4?style=for-the-badge&logo=google-chrome&logoColor=white)](https://chrome.google.com/webstore/detail/graph-x-ray/gdhbldfajbedclijgcmmmobdbnjhnpdh) |
-|![Edge Web Store Users](https://img.shields.io/badge/Microsoft_Edge_--_Users-10k-gray?style=social&color=purple) ![Edge Web Store Stars](https://img.shields.io/chrome-web-store/stars/gdhbldfajbedclijgcmmmobdbnjhnpdh?style=social&label=Microsoft%20Edge%20-%20Rating&color=purple) | ![Chrome Web Store Users](https://img.shields.io/chrome-web-store/users/gdhbldfajbedclijgcmmmobdbnjhnpdh?style=social&label=Chrome%20-%20Users&color=purple) ![Chrome Web Store Stars](https://img.shields.io/chrome-web-store/stars/gdhbldfajbedclijgcmmmobdbnjhnpdh?style=social&label=Chrome%20-%20Rating&color=purple) |
-
 ### Manual Install
 
-To manually install the Graph X-Ray extension, download the latest release from the [GitHub Releases page](https://github.com/merill/graphxray/releases) and follow the instructions for your browser.
+To manually install the Firefox fork, download the latest release from the [GitHub Releases page](https://github.com/knbsilva/graphxray-firefox/releases) and follow the Firefox instructions below.
 
-- Download the latest `.zip` file from the [Releases page](https://github.com/merill/graphxray/releases).
-- Extract the contents of the `.zip` file.
-- Open your browser and navigate to
-  - Microsoft Edge: `edge://extensions`
-  - Google Chrome: `chrome://extensions`
-- Enable "Developer mode" by toggling the switch (usually in the bottom left or top right corner).
-- Click on "Load unpacked" and select the extracted folder.
+- Firefox local testing:
+  - Download or build the Firefox output, then use `about:debugging#/runtime/this-firefox`.
+  - Click `Load Temporary Add-on`.
+  - Select the `manifest.json` from the unpacked Firefox build folder.
+- Firefox signed install:
+  - A normal Firefox release requires a signed `.xpi`.
+  - The generated `graphxray-firefox-unsigned-*.xpi` is intended for signing/upload workflows, not direct installation in standard Firefox.
+
+### Firefox Development Load
+
+For Firefox local testing, use a temporary add-on:
+
+- Build or prepare the Firefox output.
+- Open `about:debugging#/runtime/this-firefox`.
+- Click `Load Temporary Add-on`.
+- Select the generated `manifest.json` from `build/firefox` or `dev/firefox`.
+
+If you want to install a `.xpi` directly in normal Firefox releases, it must be signed. Temporary loading from `manifest.json` is the supported local development flow.
 
 ## Supported Microsoft Graph Endpoints
 
@@ -78,7 +79,7 @@ The extension works with any web page that makes Graph API calls. We've primaril
 - Microsoft Entra
 - Microsoft Intune
 
-If there are admin portals where you are not seeing Graph X-Ray work as expected, please open an [issue](https://github.com/merill/graphxray/issues), even better, submit a pull request by following the steps in [Adding non-Graph API calls to Ultra X-Ray](#adding-non-graph-api-calls-to-ultra-x-ray).
+If there are admin portals where you are not seeing Graph X-Ray work as expected, please open an [issue](https://github.com/knbsilva/graphxray-firefox/issues), even better, submit a pull request by following the steps in [Adding non-Graph API calls to Ultra X-Ray](#adding-non-graph-api-calls-to-ultra-x-ray).
 
 ## Using Graph X-Ray
 
@@ -88,6 +89,7 @@ To view Graph calls in real-time:
 
 - Browse to the **Microsoft admin portal (Entra, Intune...)**
 - Open **Developer Tools**
+- If you are using **Firefox**, open the **Network** tab once first
 - Open the **Graph X-Ray panel** in Developer Tools
 - Make changes in the portal to record and view the corresponding Graph API calls and PowerShell commands
 
@@ -104,14 +106,17 @@ To view Graph calls in real-time:
 
 ##### Using the menu
 
-- On Microsoft Edge open the menu from the top right then select **Extensions**
-- On Google Chrome open the menu from the top right then select **More Tools** and click **Extensions**
+- Open the Firefox application menu from the top right.
+- Select **More tools**.
+- Select **Web Developer Tools**.
 
-![Screenshot of selecting Developer Tools in Edge](./public/img/tutorial/Tutorial-1.png)
+![Screenshot of selecting Developer Tools in Firefox](./public/img/tutorial/Tutorial-1.png)
 
 #### Open the Graph X-Ray panel
 
 Expand the tabs in Developer Tools and select the Graph X-Ray panel.
+
+If you are using Firefox, open the **Network** tab once before switching to **Graph X-Ray**. Firefox only starts sending the DevTools network events after the Network tool has been activated.
 
 If you don't see the Graph X-Ray panel you may need to restart your browser.
 
@@ -136,7 +141,7 @@ Scroll down in the Graph X-Ray panel to view the new stack trace.
 
 `npm start` to compile and debug
 
-To load the extension, go to chrome://extensions or edge://extensions, turn on developer mode, click on "load unpacked", and navigate to the ./dev folder.
+To prepare the Firefox development build, run `npm start`, open `about:debugging#/runtime/this-firefox`, choose `Load Temporary Add-on`, and select the `manifest.json` from `./dev/firefox`.
 
 ### Production build
 
@@ -144,7 +149,17 @@ Production builds are automatically created in GitHub with the right version num
 
 If you want to create a production build of the extension on your desktop, run `npm run build`.
 
-The build artifacts will be placed in the `build` folder.
+The Firefox build artifacts will be placed in `build/firefox`.
+
+### Packaged artifacts
+
+Use the packaging scripts when you need releasable files instead of just unpacked folders:
+
+- `npm run package` builds Firefox and creates:
+  - `build/packages/graphxray-firefox-v<version>.zip`
+  - `build/packages/graphxray-firefox-unsigned-v<version>.xpi`
+
+The Firefox `.xpi` is unsigned. Use the unpacked Firefox build for `about:debugging`, or submit the unsigned `.xpi` to the Mozilla signing flow before normal installation.
 
 ## Available Scripts
 
@@ -176,15 +191,17 @@ To add support for a new endpoint.
 
 1. **Figure out the API endpoint** - View the network requests in the browser's developer tools and find out the domain where the API is hosted.
 1. **Add domain to [domains.js](./src/common/domains.js)** - Add the new domain to the list of domains in the `domains.js` file.
-1. **Add domain to [manifest.json](./src/public/manifest.json)** - Note the manifest requires the / at the end of the domain.
+1. **Add domain to the Firefox manifest** - Update [manifest.firefox.json](./public/manifest.firefox.json). Note the manifest requires the / at the end of the domain.
 1. **Test the endpoint** - Make a request to the new blade and verify that it appears in Graph X-Ray.
 
 ## Feedback and Support
 
 This is an independently developed application and is not endorsed or supported by Microsoft.
 
-Please share feedback and report issues on [Github](https://github.com/merill/graphxray/issues).
+Please share feedback and report issues on [GitHub](https://github.com/knbsilva/graphxray-firefox/issues).
 
 ## Acknowledgements
+
+This fork is based on the original project by [merill/graphxray](https://github.com/merill/graphxray).
 
 This project was originally a hackathon project by [Eunice](https://twitter.com/Eunixnho), Dhruv, Clement, [Monica](https://twitter.com/mumbihere)  & [@merill](https://twitter.com/merill).
