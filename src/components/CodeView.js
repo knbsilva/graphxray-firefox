@@ -518,6 +518,27 @@ export const CodeView = ({ request, lightUrl, snippetLanguage }) => {
         </div>
       )}
 
+      {!request.code &&
+        request.codeError &&
+        request.codeError.length > 0 && (
+          <div
+            style={{
+              marginTop: "12px",
+              marginBottom: "12px",
+              padding: "12px 14px",
+              borderRadius: "8px",
+              border: "1px solid #f3c58d",
+              backgroundColor: "#fff4e5",
+              color: "#7a3e00",
+              fontSize: "13px",
+              lineHeight: "1.4",
+            }}
+          >
+            Snippet generation failed for this request. Diagnostic mode can be
+            used to export the full DevX error details.
+          </div>
+        )}
+
       {request.code && request.code.length > 0 && (
         <div style={{ position: "relative" }}>
           <SyntaxHighlighter

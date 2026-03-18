@@ -1,4 +1,4 @@
-import { parseGraphUrl, GRAPH_DOMAINS, isUltraXRayDomain } from "./domains.js";
+import { GRAPH_DOMAINS, isUltraXRayDomain } from "./domains.js";
 import { createDiagnosticPreview } from "./diagnostics.js";
 import { sendRuntimeMessage } from "./extensionApi.js";
 
@@ -22,6 +22,144 @@ const emitDiagnosticLog = (
   }
 };
 
+const isAbsoluteUrl = (value = "") => /^https?:\/\//i.test(value);
+
+const trimTrailingQueryDelimiters = (value = "") =>
+  value.replace(/[?&]+$/, "");
+
+const buildAbsoluteGraphUrl = (url) => {
+  if (isAbsoluteUrl(url)) {
+    return url;
+  }
+
+  const normalizedUrl = url.startsWith("/") ? url : `/${url}`;
+  return `${GRAPH_DOMAINS.STANDARD[0]}${normalizedUrl}`;
+};
+
+const normalizePathSegmentForDevX = (segment) => {
+  const odataSegmentMatch = /^([^()]+)\((.+)\)$/.exec(segment);
+  if (!odataSegmentMatch) {
+    return [segment];
+  }
+
+  const collection = odataSegmentMatch[1];
+  let identifier = odataSegmentMatch[2].trim();
+
+  if (
+    (identifier.startsWith("'") && identifier.endsWith("'")) ||
+    (identifier.startsWith('"') && identifier.endsWith('"'))
+  ) {
+    identifier = identifier.slice(1, -1);
+  }
+
+  try {
+    identifier = decodeURIComponent(identifier);
+  } catch (error) {
+    console.log("Could not decode OData identifier:", identifier, error);
+  }
+
+  return [collection, encodeURIComponent(identifier)];
+};
+
+const normalizeGraphRequestUrlForDevX = (url) => {
+  const absoluteUrl = buildAbsoluteGraphUrl(url);
+  const urlObject = new URL(absoluteUrl);
+  const normalizedSegments = urlObject.pathname
+    .split("/")
+    .filter(Boolean)
+    .flatMap(normalizePathSegmentForDevX);
+  const normalizedPathname = `/${normalizedSegments.join("/")}`;
+  const normalizedSearch = trimTrailingQueryDelimiters(urlObject.search);
+  const path = `${normalizedPathname}${normalizedSearch}`;
+
+  return {
+    host: urlObject.host,
+    path,
+    normalizedUrl: `${urlObject.origin}${path}`,
+  };
+};
+
+const buildRequestBodyLookupUrls = (requestUrl) => {
+  const urlsToTry = new Set([requestUrl]);
+
+  if (isAbsoluteUrl(requestUrl)) {
+    return [...urlsToTry];
+  }
+
+  const normalizedUrl = requestUrl.startsWith("/") ? requestUrl : `/${requestUrl}`;
+  const hasVersionPrefix =
+    normalizedUrl.startsWith("/v1.0/") || normalizedUrl.startsWith("/beta/");
+
+  GRAPH_DOMAINS.STANDARD.forEach((domain) => {
+    if (hasVersionPrefix) {
+      urlsToTry.add(`${domain}${normalizedUrl}`);
+      return;
+    }
+
+    urlsToTry.add(`${domain}/v1.0${normalizedUrl}`);
+    urlsToTry.add(`${domain}/beta${normalizedUrl}`);
+  });
+
+  return [...urlsToTry];
+};
+
+const formatRequestBodyForFallback = (body) => {
+  if (!body) {
+    return "";
+  }
+
+  try {
+    return JSON.stringify(JSON.parse(body), null, 2);
+  } catch (error) {
+    return body;
+  }
+};
+
+const buildFallbackRequestUrl = (url) =>
+  trimTrailingQueryDelimiters(buildAbsoluteGraphUrl(url));
+
+const escapePowerShellSingleQuotedString = (value = "") =>
+  value.replace(/'/g, "''");
+
+const buildPowerShellFallbackSnippet = (method, url, body) => {
+  const requestUrl = buildFallbackRequestUrl(url);
+  const bodyText = formatRequestBodyForFallback(body);
+  const upperMethod = method.toUpperCase();
+  const lines = [
+    "# Generated local fallback because DevX snippet generation failed.",
+    '$accessToken = "<ACCESS_TOKEN>"',
+    '$headers = @{',
+    '  Authorization = "Bearer $accessToken"',
+    '  "Content-Type" = "application/json"',
+    "}",
+    `$uri = '${escapePowerShellSingleQuotedString(requestUrl)}'`,
+  ];
+
+  if (bodyText) {
+    lines.push("$body = @'");
+    lines.push(bodyText);
+    lines.push("'@");
+    lines.push(
+      `$response = Invoke-RestMethod -Uri $uri -Method "${upperMethod}" -Headers $headers -Body $body`
+    );
+  } else {
+    lines.push(
+      `$response = Invoke-RestMethod -Uri $uri -Method "${upperMethod}" -Headers $headers`
+    );
+  }
+
+  lines.push("$response");
+  return lines.join("\n");
+};
+
+const buildFallbackSnippet = (snippetLanguage, method, url, body) => {
+  if (snippetLanguage === "powershell") {
+    return buildPowerShellFallbackSnippet(method, url, body);
+  }
+
+  return null;
+};
+
 const getPowershellCmd = async function (
   snippetLanguage,
   method,
@@ -43,9 +181,7 @@ const getPowershellCmd = async function (
   }
   
   const bodyText = body ?? ""; //Cast undefined and null to string
-  // Use the extracted parseGraphUrl function
-  const { path: parsedPath, host } = parseGraphUrl(url);
-  const path = encodeURI(parsedPath); //Replace the spaces in OData with + as expected by API
+  const { host, path, normalizedUrl } = normalizeGraphRequestUrlForDevX(url);
   const payload = `${method} ${path} HTTP/1.1\r\nHost: ${host}\r\nContent-Type: application/json\r\n\r\n${bodyText}`;
   console.log("Payload:", payload);
 
@@ -68,6 +204,7 @@ const getPowershellCmd = async function (
     snippetLanguage,
     method,
     url,
+    normalizedUrl,
     endpoint: devxSnippetUri,
     requestBodyLength: bodyText.length,
     payloadPreview: createDiagnosticPreview(payload),
@@ -89,16 +226,28 @@ const getPowershellCmd = async function (
         snippetLanguage,
         method,
         url,
+        normalizedUrl,
         endpoint: devxSnippetUri,
         status: response.status,
         responseLength: responseText.length,
         responsePreview: createDiagnosticPreview(responseText),
       });
-      return typeof responseText === "string" ? responseText : String(responseText);
+      return {
+        code:
+          typeof responseText === "string" ? responseText : String(responseText),
+        error: null,
+        source: "devx",
+      };
     } else {
       const errorText = await response.text();
       const errorMsg = `DevXError: ${response.status} ${response.statusText} for ${method} ${url} - Response: ${errorText}`;
       console.log(errorMsg);
+      const fallbackCode = buildFallbackSnippet(
+        snippetLanguage,
+        method,
+        url,
+        bodyText
+      );
       emitDiagnosticLog(
         diagnosticLogger,
         "devx_request_failed",
@@ -106,20 +255,42 @@ const getPowershellCmd = async function (
           snippetLanguage,
           method,
           url,
+          normalizedUrl,
           endpoint: devxSnippetUri,
           status: response.status,
           statusText: response.statusText,
           errorPreview: createDiagnosticPreview(errorText),
+          fallbackGenerated: Boolean(fallbackCode),
         },
         "error"
       );
-      return null;
+      if (fallbackCode) {
+        emitDiagnosticLog(diagnosticLogger, "fallback_snippet_generated", {
+          snippetLanguage,
+          method,
+          url,
+          normalizedUrl,
+          source: "local",
+          codeLength: fallbackCode.length,
+        });
+      }
+      return {
+        code: fallbackCode,
+        error: errorText,
+        source: fallbackCode ? "fallback" : "none",
+      };
     }
   } catch (error) {
     const errorMsg = `DevXError: Network/Request error for ${method} ${url} - ${
       error.message || error
     }`;
     console.log(errorMsg, error);
+    const fallbackCode = buildFallbackSnippet(
+      snippetLanguage,
+      method,
+      url,
+      bodyText
+    );
     emitDiagnosticLog(
       diagnosticLogger,
       "devx_request_exception",
@@ -127,12 +298,28 @@ const getPowershellCmd = async function (
         snippetLanguage,
         method,
         url,
+        normalizedUrl,
         endpoint: devxSnippetUri,
         error: error?.message || String(error),
+        fallbackGenerated: Boolean(fallbackCode),
       },
       "error"
     );
-    return null;
+    if (fallbackCode) {
+      emitDiagnosticLog(diagnosticLogger, "fallback_snippet_generated", {
+        snippetLanguage,
+        method,
+        url,
+        normalizedUrl,
+        source: "local",
+        codeLength: fallbackCode.length,
+      });
+    }
+    return {
+      code: fallbackCode,
+      error: error?.message || String(error),
+      source: fallbackCode ? "fallback" : "none",
+    };
   }
 };
 
@@ -180,14 +367,7 @@ const getRequestBody = async function (request, diagnosticLogger = null) {
     console.log("getRequestBody - trying background script with URL:", request.url);
     try {
       const startedDateTime = request._harEntry?.startedDateTime;
-      // Generate URLs to try based on standard Graph domains
-      const urlsToTry = [request.url];
-      
-      // Add variations for standard Graph endpoints
-      GRAPH_DOMAINS.STANDARD.forEach(domain => {
-        urlsToTry.push(`${domain}/v1.0${request.url}`);
-        urlsToTry.push(`${domain}/beta${request.url}`);
-      });
+      const urlsToTry = buildRequestBodyLookupUrls(request.url);
       
       for (const url of urlsToTry) {
         const response = await sendRuntimeMessage({
@@ -479,7 +659,7 @@ const getBatchCodeSnippets = async function (
       const requestBodyText = request.body ? JSON.stringify(request.body) : "";
       
       // Generate code snippet for this individual request
-      const code = await getPowershellCmd(
+      const snippetResult = await getPowershellCmd(
         snippetLanguage,
         request.method,
         fullUrl,
@@ -487,12 +667,14 @@ const getBatchCodeSnippets = async function (
         diagnosticLogger
       );
       
-      if (code) {
+      if (snippetResult?.code) {
         codeSnippets.push({
           id: request.id,
           method: request.method,
           url: request.url,
-          code: code
+          code: snippetResult.code,
+          codeSource: snippetResult.source || "devx",
+          codeError: snippetResult.error || null,
         });
       }
     }
@@ -548,6 +730,8 @@ const getCodeView = async function (
     : "";
   
   let code = null;
+  let codeError = null;
+  let codeSource = "none";
   let batchCodeSnippets = [];
   
   // Check if this is a batch request
@@ -563,22 +747,28 @@ const getCodeView = async function (
     );
     
     // Also generate a code snippet for the main batch request
-    code = await getPowershellCmd(
+    const snippetResult = await getPowershellCmd(
       snippetLanguage,
       request.method,
       version + request.url,
       requestBody,
       diagnosticLogger
     );
+    code = snippetResult?.code ?? null;
+    codeError = snippetResult?.error ?? null;
+    codeSource = snippetResult?.source ?? "none";
   } else {
     // Regular single request
-    code = await getPowershellCmd(
+    const snippetResult = await getPowershellCmd(
       snippetLanguage,
       request.method,
       version + request.url,
       requestBody,
       diagnosticLogger
     );
+    code = snippetResult?.code ?? null;
+    codeError = snippetResult?.error ?? null;
+    codeSource = snippetResult?.source ?? "none";
   }
   
   const codeView = {
@@ -586,6 +776,8 @@ const getCodeView = async function (
     requestBody: requestBody,
     responseContent: responseContent,
     code: code,
+    codeError: codeError,
+    codeSource: codeSource,
     batchCodeSnippets: batchCodeSnippets, // Add batch code snippets to the result
   };
   console.log("CodeView", codeView);
@@ -598,6 +790,8 @@ const getCodeView = async function (
     requestBodyLength: requestBody ? requestBody.length : 0,
     responseContentLength: responseContent ? responseContent.length : 0,
     batchSnippetCount: batchCodeSnippets.length,
+    codeSource,
+    errorPreview: codeError ? createDiagnosticPreview(codeError) : null,
     codePreview: code ? createDiagnosticPreview(code) : null,
   });
   return codeView;

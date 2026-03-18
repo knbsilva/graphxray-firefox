@@ -56,3 +56,11 @@
 - Fixed DevX snippet handling so generated code is awaited and stored as text instead of a pending Promise.
 - Added a structured Diagnostic Mode with `Save logs` for Firefox troubleshooting.
 - Added diagnostic logging for DevTools, background request-body capture, DevX snippet generation, and export operations.
+- Normalized Graph request URLs before sending them to DevX to avoid double-encoded query strings.
+- Normalized OData-style path segments such as `manageddevices('id')` before snippet generation requests.
+- Fixed request-body lookup URL generation so absolute Graph URLs are no longer prefixed with invalid fallback domains.
+- Added a local PowerShell fallback snippet when DevX fails, so Firefox can still show and save a usable script.
+- Added a visible UI warning when snippet generation fails and no code is available for a request.
+- Fixed saved PowerShell fallback snippets to preserve the original Graph URL safely using PowerShell single-quoted strings, avoiding `$filter`/`$select` interpolation issues.
+- Changed fallback generation to keep the original captured Graph URL for saved PowerShell snippets, while still using the normalized URL only for DevX attempts.
+- Deduplicated repeated snippet blocks in `Save script` output so identical captured calls are only exported once.

@@ -201,16 +201,27 @@ class DevTools extends React.Component {
 
   getSaveScriptContent() {
     const sections = [];
+    const seenSections = new Set();
+
+    const appendUniqueSection = (section) => {
+      const normalizedSection = section && section.trim();
+      if (!normalizedSection || seenSections.has(normalizedSection)) {
+        return;
+      }
+
+      seenSections.add(normalizedSection);
+      sections.push(normalizedSection);
+    };
 
     this.state.stack.forEach((request) => {
       if (request.code && request.code.trim()) {
-        sections.push(request.code.trim());
+        appendUniqueSection(request.code);
       }
 
       if (request.batchCodeSnippets && request.batchCodeSnippets.length > 0) {
         request.batchCodeSnippets.forEach((snippet) => {
           if (snippet.code && snippet.code.trim()) {
-            sections.push(snippet.code.trim());
+            appendUniqueSection(snippet.code);
           }
         });
       }
