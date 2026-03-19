@@ -5,12 +5,18 @@ import {
   atomOneLight,
 } from "react-syntax-highlighter/dist/esm/styles/hljs";
 import { IconButton } from "@fluentui/react/lib/Button";
+import { isUltraXRayDomain } from "../common/domains.js";
+import { downloadContentAsFile } from "../common/session.js";
+import { getSnippetLanguageOption } from "../common/snippetLanguages.js";
 
 export const CodeView = ({ request, lightUrl, snippetLanguage }) => {
   const [isRequestBodyExpanded, setIsRequestBodyExpanded] = useState(false);
   const [isSnippetExpanded, setIsSnippetExpanded] = useState(false);
   const [isBatchSnippetsExpanded, setIsBatchSnippetsExpanded] = useState(false);
   const [hoveredButton, setHoveredButton] = useState(null);
+  const requestUrl = (request?.displayRequestUrl || "").split(" ").slice(1).join(" ");
+  const requestMethod = (request?.displayRequestUrl || "").split(" ")[0] || "GRAPH";
+  const isUltraXRayRequest = isUltraXRayDomain(requestUrl);
 
   let urlStyle = atomOneDark;
   if (lightUrl) {
@@ -142,6 +148,65 @@ export const CodeView = ({ request, lightUrl, snippetLanguage }) => {
     }
   };
 
+  const sanitizeFileNameSegment = (value = "") =>
+    value
+      .replace(/^https?:\/\//i, "")
+      .replace(/[^a-z0-9]+/gi, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 80) || "entry";
+
+  const getEntryFileNameBase = () => {
+    const source = requestUrl || request.displayRequestUrl || "graphxray-entry";
+    return sanitizeFileNameSegment(`${requestMethod}-${source}`);
+  };
+
+  const getResponseFileDescriptor = (content) => {
+    if (!content || typeof content !== "string") {
+      return {
+        extension: "txt",
+        mimeType: "text/plain",
+      };
+    }
+
+    try {
+      JSON.parse(content);
+      return {
+        extension: "json",
+        mimeType: "application/json",
+      };
+    } catch (error) {
+      return {
+        extension: "txt",
+        mimeType: "text/plain",
+      };
+    }
+  };
+
+  const saveResponseToFile = async (content, suffix = "response") => {
+    if (!content || !content.trim()) {
+      return;
+    }
+
+    const descriptor = getResponseFileDescriptor(content);
+    await downloadContentAsFile(
+      content,
+      `GraphXRay-${suffix}-${getEntryFileNameBase()}.${descriptor.extension}`,
+      descriptor.mimeType
+    );
+  };
+
+  const saveSnippetToFile = async (content, suffix = "snippet") => {
+    if (!content || !content.trim()) {
+      return;
+    }
+
+    const languageOption = getSnippetLanguageOption(snippetLanguage);
+    await downloadContentAsFile(
+      content,
+      `GraphXRay-${suffix}-${getEntryFileNameBase()}.${languageOption.fileExt}`
+    );
+  };
+
   const toggleRequestBody = () => {
     setIsRequestBodyExpanded(!isRequestBodyExpanded);
   };
@@ -227,6 +292,24 @@ export const CodeView = ({ request, lightUrl, snippetLanguage }) => {
         </div>
       </div>
     </div>
+  );
+
+  const renderStatusBadge = (label, styles = {}) => (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        padding: "4px 8px",
+        borderRadius: "999px",
+        fontSize: "11px",
+        fontWeight: 700,
+        backgroundColor: "#eef2ff",
+        color: "#3730a3",
+        ...styles,
+      }}
+    >
+      {label}
+    </span>
   );
 
   // Process batch content if applicable
@@ -316,6 +399,15 @@ export const CodeView = ({ request, lightUrl, snippetLanguage }) => {
               />
             </div>
           </div>
+
+          {isUltraXRayRequest && (
+            <div style={{ marginBottom: "10px" }}>
+              {renderStatusBadge("Internal API (Ultra X-Ray)", {
+                backgroundColor: "#fef3c7",
+                color: "#92400e",
+              })}
+            </div>
+          )}
 
           {isRequestBodyExpanded && ((request.requestBody && request.requestBody.length > 0) || (request.responseContent && request.responseContent.length > 0)) && (
             <div style={{
@@ -543,7 +635,36 @@ export const CodeView = ({ request, lightUrl, snippetLanguage }) => {
                         color: "#333",
                         marginBottom: "8px"
                       }}>
-                        Response
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: "8px",
+                          }}
+                        >
+                          <span>Response</span>
+                          <IconButton
+                            iconProps={{ iconName: "Download" }}
+                            title="Save response"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              saveResponseToFile(
+                                request.responseContent,
+                                "response"
+                              );
+                            }}
+                            styles={{
+                              root: {
+                                minWidth: "28px",
+                                width: "28px",
+                                height: "28px",
+                                color: "#334155",
+                              },
+                            }}
+                          />
+                        </div>
                       </div>
                       <div style={{ position: "relative" }}>
                         <SyntaxHighlighter
@@ -637,6 +758,32 @@ export const CodeView = ({ request, lightUrl, snippetLanguage }) => {
 
       {request.code && request.code.length > 0 && isSnippetExpanded && (
         <div style={{ position: "relative" }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              marginBottom: "8px",
+            }}
+          >
+            <IconButton
+              iconProps={{ iconName: "Download" }}
+              title="Save snippet"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                saveSnippetToFile(request.code, "snippet");
+              }}
+              styles={{
+                root: {
+                  minWidth: "28px",
+                  width: "28px",
+                  height: "28px",
+                  color: "#334155",
+                  backgroundColor: "rgba(255, 255, 255, 0.9)",
+                },
+              }}
+            />
+          </div>
           <SyntaxHighlighter
             language={syntaxLanguage}
             style={atomOneDark}
@@ -711,7 +858,38 @@ export const CodeView = ({ request, lightUrl, snippetLanguage }) => {
                 color: "#666",
                 marginBottom: "8px"
               }}>
-                Request ID: {snippet.id} - {snippet.method} {snippet.url}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "8px",
+                  }}
+                >
+                  <span>
+                    Request ID: {snippet.id} - {snippet.method} {snippet.url}
+                  </span>
+                  <IconButton
+                    iconProps={{ iconName: "Download" }}
+                    title="Save individual snippet"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      saveSnippetToFile(
+                        snippet.code,
+                        `snippet-${sanitizeFileNameSegment(snippet.id)}`
+                      );
+                    }}
+                    styles={{
+                      root: {
+                        minWidth: "28px",
+                        width: "28px",
+                        height: "28px",
+                        color: "#334155",
+                      },
+                    }}
+                  />
+                </div>
               </div>
               <div style={{ position: "relative" }}>
                 <SyntaxHighlighter

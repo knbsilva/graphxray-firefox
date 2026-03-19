@@ -80,3 +80,9 @@
 - Added HTTP method filtering in the standalone dashboard for `GET`, `POST`, `PATCH`, `PUT`, and `DELETE`.
 - Reworked the built-in usage guide to be Firefox-only and text-only, removing screenshots, GIFs, and references to non-Firefox browsers.
 - Updated repository links so feedback goes to the Firefox fork and README support guidance distinguishes between Issues for bugs and Discussions for general conversation.
+
+### Session Export And Internal API Labels
+
+- Added per-entry export actions for generated snippets and captured responses.
+- Added visual labels for Ultra X-Ray internal API calls in the session UI where the request domain can be identified as an internal endpoint.
+- Tightened the README so it reflects the actual Firefox workflow, standalone dashboard behavior, and current snippet-generation limitations more accurately.

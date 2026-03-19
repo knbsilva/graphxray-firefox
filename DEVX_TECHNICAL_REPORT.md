@@ -85,14 +85,9 @@ Conclusion:
 
 ## Evidence Summary
 
-### Firefox Diagnostic Files
+### Firefox Diagnostic Exports
 
-Observed diagnostic exports:
-
-- `GraphXRayDiagnostics-2026-03-18T17-46-58-979Z.json`
-- `GraphXRayDiagnostics-2026-03-18T18-15-32-497Z.json`
-- `GraphXRayDiagnostics-2026-03-18T18-53-25-581Z.json`
-- `GraphXRayDiagnostics-2026-03-18T19-10-26-367Z.json`
+Observed across multiple diagnostic exports generated during Firefox testing:
 
 Key repeated pattern:
 

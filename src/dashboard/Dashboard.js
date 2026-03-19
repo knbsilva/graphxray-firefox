@@ -8,6 +8,7 @@ import { getTheme } from "@fluentui/react";
 import { AppHeader } from "../components/AppHeader";
 import DevToolsCommandBar from "../components/DevToolsCommandBar";
 import { CodeView } from "../components/CodeView";
+import { isUltraXRayDomain } from "../common/domains.js";
 import {
   addStorageChangeListener,
   isFirefoxBrowser,
@@ -41,6 +42,8 @@ const filterDropdownStyles = {
 
 const getEntryMethod = (entry) =>
   (entry?.displayRequestUrl || "").split(" ")[0] || "GRAPH";
+const getEntryUrl = (entry) =>
+  (entry?.displayRequestUrl || "").split(" ").slice(1).join(" ");
 
 const formatTimestamp = (timestamp) => {
   if (!timestamp) {
@@ -275,6 +278,17 @@ class Dashboard extends React.Component {
               <div className="DashboardListMeta">
                 {entry.codeSource && (
                   <span className="DashboardBadge">{entry.codeSource}</span>
+                )}
+                {isUltraXRayDomain(getEntryUrl(entry)) && (
+                  <span
+                    className="DashboardBadge"
+                    style={{
+                      backgroundColor: "#fef3c7",
+                      color: "#92400e",
+                    }}
+                  >
+                    Internal API
+                  </span>
                 )}
                 {entry.batchCodeSnippets?.length > 0 && (
                   <span className="DashboardBadge">

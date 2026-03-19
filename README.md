@@ -2,15 +2,19 @@
 
 Firefox-focused fork of [merill/graphxray](https://github.com/merill/graphxray), adapted to run as a Firefox DevTools extension and to ship Firefox-specific build artifacts.
 
-Unlock the power of automation and learning in the Microsoft 365 ecosystem. Graph X-Ray is a developer tool that demystifies the Microsoft admin portals by revealing the exact Microsoft Graph API calls being made in the background as you work.
+Graph X-Ray helps you understand what Microsoft 365 admin portals are doing in the background by capturing the Microsoft Graph and related API calls triggered by your actions.
 
-Stop spending hours digging through documentation to figure out how to automate a task. Simply perform the action in the portal, and Graph X-Ray will provide you with the corresponding, ready-to-use script. It's the ultimate "learn by doing" tool for Microsoft Graph.
+Use it to inspect requests and responses, generate snippets, export evidence, and move faster from portal interaction to repeatable automation.
 
 ## Key Features
 
 - **API Call Inspection**: Capture and inspect all Microsoft Graph API requests (GET, POST, PATCH, DELETE) and their full responses directly within your browser's developer tools.
 
-- **Instant Script Generation**: Automatically convert recorded API calls into functional code snippets.
+- **Snippet Generation**: Convert recorded API calls into code snippets when the underlying Microsoft Graph snippet service supports the endpoint.
+
+- **Standalone Dashboard**: Review the active captured session in a separate extension page instead of staying inside the Web Developer Tools panel.
+
+- **Diagnostics and Export**: Save the full session, structured logs, individual snippets, and individual responses for troubleshooting and reuse.
 
 - **Multi-Language Support**: Generate scripts in the most popular languages for M365 automation, including:
 
@@ -34,7 +38,7 @@ Stop spending hours digging through documentation to figure out how to automate 
 
 - **IT Consultants & Support Professionals** who need to quickly script solutions for clients.
 
-Supercharge your Microsoft 365 workflow in Firefox and turn your clicks into code.
+Use Firefox to turn captured admin actions into something you can inspect, export, and automate.
 
 ## Install
 
@@ -91,6 +95,12 @@ To view Graph calls in real-time:
 - Open the **Graph X-Ray panel** in Developer Tools
 - Make changes in the portal to record and view the corresponding Graph API calls and PowerShell commands
 - Optional: use **Open dashboard** to review the captured session in a separate extension page without staying inside Developer Tools
+
+Notes:
+
+- Graph X-Ray currently depends on Firefox DevTools network capture. Keep Developer Tools open while capturing.
+- Snippet generation quality depends on endpoint coverage in the Microsoft Graph snippet service.
+- For PowerShell, this fork also includes a local fallback when DevX does not return a snippet.
 
 ### Step by step guide
 
@@ -151,21 +161,17 @@ In the project directory, you can run:
 
 ### `npm start`
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+Builds the Firefox development output into `dev/firefox`.
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+After running it, open `about:debugging#/runtime/this-firefox`, choose `Load Temporary Add-on`, and select the generated `manifest.json` from `dev/firefox`.
+
+The development build refreshes as you edit files, and build/lint errors are shown in the terminal.
 
 ### `npm run build`
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+Builds the Firefox production output into `build/firefox`.
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
-
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+This is the folder you should use for temporary loading in Firefox when you want to validate a production-style build locally.
 
 ## Adding non-Graph API calls to Ultra X-Ray
 
