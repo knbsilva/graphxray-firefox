@@ -4,6 +4,7 @@ import { DefaultPalette } from "@fluentui/react";
 import { ContextualMenuItemType } from "@fluentui/react/lib/ContextualMenu";
 import {
   getExtensionUrl,
+  openExtensionPage,
   openExtensionOptionsPage,
 } from "../common/extensionApi.js";
 
@@ -46,7 +47,20 @@ export const openOptionsPage = () => {
   });
 };
 
+export const openDashboardPage = () => {
+  openExtensionPage("dashboard.html").catch((error) => {
+    console.log("Could not open dashboard page:", error);
+    window.open(getExtensionUrl("dashboard.html"));
+  });
+};
+
 const _overflowItems = [
+  {
+    key: "dashboard",
+    text: "Open dashboard",
+    onClick: () => openDashboardPage(),
+    iconProps: { iconName: "OpenInNewTab" },
+  },
   {
     key: "history",
     text: "View Graph calls",

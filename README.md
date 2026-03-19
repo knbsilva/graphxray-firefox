@@ -92,6 +92,7 @@ To view Graph calls in real-time:
 - If you are using **Firefox**, open the **Network** tab once first
 - Open the **Graph X-Ray panel** in Developer Tools
 - Make changes in the portal to record and view the corresponding Graph API calls and PowerShell commands
+- Optional: use **Open dashboard** to review the captured session in a separate extension page without staying inside Developer Tools
 
 ![Demo of opening Graph X-Ray panel](./public/img/tutorial/graphxraydemo.gif)
 
@@ -127,6 +128,8 @@ If you don't see the Graph X-Ray panel you may need to restart your browser.
 Make changes in the Azure Portal to view the corresponding Graph API calls and PowerShell commands for the action (e.g. edit a user's profile information and click Save).
 
 Scroll down in the Graph X-Ray panel to view the new stack trace.
+
+You can also click **Open dashboard** from the Graph X-Ray panel or extension popup to review the same captured session in a standalone page.
 
 ![Screenshot of viewing graph changes](./public/img/tutorial/Tutorial-3.png)
 

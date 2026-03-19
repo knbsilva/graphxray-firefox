@@ -14,7 +14,10 @@ import {
   isFirefoxBrowser,
   sendRuntimeMessage,
 } from "./common/extensionApi.js";
-import { openOptionsPage } from "./components/CommandMenu.js";
+import {
+  openDashboardPage,
+  openOptionsPage,
+} from "./components/CommandMenu.js";
 
 const theme = getTheme();
 
@@ -143,8 +146,15 @@ class App extends React.Component {
               </p>
             )}
             <PrimaryButton
-              onClick={openOptionsPage}
+              onClick={openDashboardPage}
               iconProps={{ iconName: "OpenInNewTab" }}
+              styles={{ root: { marginRight: "10px" } }}
+            >
+              Open dashboard
+            </PrimaryButton>
+            <PrimaryButton
+              onClick={openOptionsPage}
+              iconProps={{ iconName: "Info" }}
             >
               Show me how
             </PrimaryButton>

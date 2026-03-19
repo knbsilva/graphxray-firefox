@@ -3,7 +3,15 @@ import { CommandBar } from "@fluentui/react/lib/CommandBar";
 
 class DevToolsCommandBar extends React.Component {
   render() {
-    const _items = [
+    const items = [
+      this.props.openDashboard
+        ? {
+            key: "dashboard",
+            text: "Open dashboard",
+            onClick: this.props.openDashboard,
+            iconProps: { iconName: "OpenInNewTab" },
+          }
+        : null,
       {
         key: "download",
         text: "Save script",
@@ -22,11 +30,11 @@ class DevToolsCommandBar extends React.Component {
         onClick: this.props.clearSession,
         iconProps: { iconName: "Delete" },
       },
-    ];
+    ].filter(Boolean);
 
     return (
       <div>
-        <CommandBar items={_items} ariaLabel="Save script and clear items" />
+        <CommandBar items={items} ariaLabel="Graph X-Ray session commands" />
       </div>
     );
   }

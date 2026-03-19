@@ -1,5 +1,10 @@
 import { getStorageLocal, setStorageLocal } from "./extensionApi.js";
 import { DIAGNOSTIC_MODE_STORAGE_KEY } from "./diagnostics.js";
+import {
+  GRAPHXRAY_SESSION_STORAGE_KEY,
+  createEmptySessionState,
+  normalizeSessionState,
+} from "./session.js";
 
 const REQUEST_BODIES_STORAGE_KEY = "requestBodiesCache";
 
@@ -38,6 +43,16 @@ const saveDiagnosticModeEnabled = async (enabled) =>
   await saveObjectInLocalStorage({
     [DIAGNOSTIC_MODE_STORAGE_KEY]: Boolean(enabled),
   });
+const getGraphXRaySession = async () =>
+  normalizeSessionState(
+    await getObjectFromLocalStorage(GRAPHXRAY_SESSION_STORAGE_KEY)
+  );
+const saveGraphXRaySession = async (session) =>
+  await saveObjectInLocalStorage({
+    [GRAPHXRAY_SESSION_STORAGE_KEY]: normalizeSessionState(session),
+  });
+const clearGraphXRaySession = async () =>
+  await saveGraphXRaySession(createEmptySessionState());
 
 const addChoices = async (i = 1) => {
   const currentMetrics = await getObjectFromLocalStorage("currentMetrics");
@@ -95,6 +110,9 @@ export {
   saveRequestBodiesCache,
   getDiagnosticModeEnabled,
   saveDiagnosticModeEnabled,
+  getGraphXRaySession,
+  saveGraphXRaySession,
+  clearGraphXRaySession,
   addClicks,
   addConcepts,
   addChoices,

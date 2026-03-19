@@ -64,3 +64,12 @@
 - Fixed saved PowerShell fallback snippets to preserve the original Graph URL safely using PowerShell single-quoted strings, avoiding `$filter`/`$select` interpolation issues.
 - Changed fallback generation to keep the original captured Graph URL for saved PowerShell snippets, while still using the normalized URL only for DevX attempts.
 - Deduplicated repeated snippet blocks in `Save script` output so identical captured calls are only exported once.
+
+### Standalone Dashboard
+
+- Added a second extension UI at `dashboard.html` so captured sessions can be reviewed outside the Web Developer Tools panel.
+- Kept the current DevTools flow as the primary capture source and mirrored its session state into shared extension storage.
+- Added shared session helpers for script export, diagnostic export, and snippet language metadata.
+- Added storage-based session synchronization so the standalone dashboard and DevTools panel stay aligned without replacing the existing panel behavior.
+- Added `Open dashboard` entry points from the DevTools command bar, popup, and command menu.
+- Added a searchable standalone dashboard UI with session summary, request list, detailed request view, and the existing `Save script`/`Save logs`/`Clear session` actions.

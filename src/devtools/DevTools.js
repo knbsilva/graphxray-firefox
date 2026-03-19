@@ -13,35 +13,42 @@ import { TooltipHost } from "@fluentui/react/lib/Tooltip";
 import DevToolsCommandBar from "../components/DevToolsCommandBar";
 import { Layer } from "@fluentui/react/lib/Layer";
 import {
+  addStorageChangeListener,
   addRuntimeMessageListener,
-  downloadFile as downloadExtensionFile,
   getDevtoolsApi,
   getHostWebview,
   isFirefoxBrowser,
+  openExtensionPage,
 } from "../common/extensionApi.js";
-import { saveDiagnosticModeEnabled } from "../common/storage.js";
+import {
+  getGraphXRaySession,
+  saveDiagnosticModeEnabled,
+  saveGraphXRaySession,
+} from "../common/storage.js";
 import {
   buildDiagnosticEntry,
   DIAGNOSTIC_LOG_MESSAGE_TYPE,
   DIAGNOSTIC_MODE_STORAGE_KEY,
   MAX_DIAGNOSTIC_LOG_ENTRIES,
 } from "../common/diagnostics.js";
+import {
+  buildDiagnosticExportPayload,
+  buildSessionSnapshot,
+  downloadContentAsFile,
+  getSaveScriptContentFromStack,
+  GRAPHXRAY_SESSION_STORAGE_KEY,
+  normalizeSessionState,
+} from "../common/session.js";
+import {
+  getSnippetLanguageOption,
+  SNIPPET_LANGUAGE_OPTIONS,
+} from "../common/snippetLanguages.js";
 
 const theme = getTheme();
 
 const dropdownStyles = {
   dropdown: { width: 300 },
 };
-
-const options = [
-  { key: "powershell", text: "PowerShell", fileExt: "ps1" },
-  { key: "python", text: "Python", fileExt: "py" },
-  { key: "c#", text: "C#", fileExt: "cs" },
-  { key: "javascript", text: "JavaScript", fileExt: "js" },
-  { key: "java", text: "Java", fileExt: "java" },
-  { key: "objective-c", text: "Objective-C", fileExt: "c" },
-  { key: "go", text: "Go", fileExt: "go" },
-];
 
 class DevTools extends React.Component {
   constructor() {
@@ -64,13 +71,27 @@ class DevTools extends React.Component {
       snippetLanguage: "powershell",
       ultraXRayMode,
     };
+    this.sessionSyncTimeout = null;
+    this.removeStorageChangeListener = null;
   }
 
   componentDidMount() {
+    this.hydrateSessionFromStorage();
     this.syncDiagnosticModeState();
+    this.addSessionStorageListener();
     this.addDiagnosticLogListener();
     this.addListener();
     this.addListenerGraph();
+  }
+
+  componentWillUnmount() {
+    if (this.sessionSyncTimeout) {
+      clearTimeout(this.sessionSyncTimeout);
+    }
+
+    if (this.removeStorageChangeListener) {
+      this.removeStorageChangeListener();
+    }
   }
 
   syncDiagnosticModeState = async () => {
@@ -78,11 +99,14 @@ class DevTools extends React.Component {
   };
 
   appendDiagnosticLog = (entry) => {
-    this.setState((previousState) => ({
-      diagnosticLogs: [...previousState.diagnosticLogs, entry].slice(
-        -MAX_DIAGNOSTIC_LOG_ENTRIES
-      ),
-    }));
+    this.setState(
+      (previousState) => ({
+        diagnosticLogs: [...previousState.diagnosticLogs, entry].slice(
+          -MAX_DIAGNOSTIC_LOG_ENTRIES
+        ),
+      }),
+      this.scheduleSessionSync
+    );
   };
 
   recordDiagnosticEntry = (entry) => {
@@ -108,18 +132,104 @@ class DevTools extends React.Component {
   };
 
   clearStack = () => {
-    this.setState({ stack: [] });
+    this.setState({ stack: [] }, this.scheduleSessionSync);
   };
 
   clearSession = () => {
+    this.setState(
+      {
+        stack: [],
+        diagnosticLogs: [],
+      },
+      this.scheduleSessionSync
+    );
+  };
+
+  hydrateSessionFromStorage = async () => {
+    const session = normalizeSessionState(await getGraphXRaySession());
+    if (
+      session.stack.length === 0 &&
+      session.diagnosticLogs.length === 0 &&
+      !session.updatedAt
+    ) {
+      return;
+    }
+
     this.setState({
-      stack: [],
-      diagnosticLogs: [],
+      stack: session.stack,
+      diagnosticLogs: session.diagnosticLogs,
+      diagnosticMode: session.modes.diagnosticMode,
+      snippetLanguage: session.modes.snippetLanguage,
+      ultraXRayMode: session.modes.ultraXRayMode,
     });
   };
 
-  saveScript = () => {
-    const script = this.getSaveScriptContent();
+  addSessionStorageListener = () => {
+    this.removeStorageChangeListener = addStorageChangeListener(
+      (changes, areaName) => {
+        if (
+          areaName !== "local" ||
+          !Object.prototype.hasOwnProperty.call(
+            changes,
+            GRAPHXRAY_SESSION_STORAGE_KEY
+          )
+        ) {
+          return;
+        }
+
+        const nextSession = normalizeSessionState(
+          changes[GRAPHXRAY_SESSION_STORAGE_KEY]?.newValue
+        );
+
+        if (nextSession.sourceContext === "devtools") {
+          return;
+        }
+
+        this.setState({
+          stack: nextSession.stack,
+          diagnosticLogs: nextSession.diagnosticLogs,
+          diagnosticMode: nextSession.modes.diagnosticMode,
+          snippetLanguage: nextSession.modes.snippetLanguage,
+          ultraXRayMode: nextSession.modes.ultraXRayMode,
+        });
+      }
+    );
+  };
+
+  buildCurrentSessionSnapshot = (sourceContext = "devtools") =>
+    buildSessionSnapshot({
+      stack: this.state.stack,
+      diagnosticLogs: this.state.diagnosticLogs,
+      modes: {
+        diagnosticMode: this.state.diagnosticMode,
+        snippetLanguage: this.state.snippetLanguage,
+        ultraXRayMode: this.state.ultraXRayMode,
+      },
+      sourceContext,
+    });
+
+  scheduleSessionSync = () => {
+    if (this.sessionSyncTimeout) {
+      clearTimeout(this.sessionSyncTimeout);
+    }
+
+    this.sessionSyncTimeout = setTimeout(async () => {
+      try {
+        await saveGraphXRaySession(this.buildCurrentSessionSnapshot());
+      } catch (error) {
+        console.log("Could not persist Graph X-Ray session:", error);
+      }
+    }, 150);
+  };
+
+  openDashboard = () => {
+    openExtensionPage("dashboard.html").catch((error) => {
+      console.log("Could not open standalone dashboard:", error);
+    });
+  };
+
+  saveScript = async () => {
+    const script = getSaveScriptContentFromStack(this.state.stack);
     if (!script.trim()) {
       console.warn("No generated code is available to save yet.");
       this.recordDiagnostic(
@@ -131,11 +241,9 @@ class DevTools extends React.Component {
       );
       return;
     }
-    const languageOpt = options.filter((opt) => {
-      return opt.key === this.state.snippetLanguage;
-    });
-    const fileName = "GraphXRaySession." + languageOpt[0].fileExt;
-    this.downloadFile(script, fileName);
+    const languageOpt = getSnippetLanguageOption(this.state.snippetLanguage);
+    const fileName = "GraphXRaySession." + languageOpt.fileExt;
+    await downloadContentAsFile(script, fileName);
     this.recordDiagnostic("save_script_requested", {
       fileName,
       language: this.state.snippetLanguage,
@@ -144,7 +252,7 @@ class DevTools extends React.Component {
   };
 
   copyScript = () => {
-    const script = this.getSaveScriptContent();
+    const script = getSaveScriptContentFromStack(this.state.stack);
     if (!script.trim()) {
       console.warn("No generated code is available to copy yet.");
       this.recordDiagnostic(
@@ -169,100 +277,19 @@ class DevTools extends React.Component {
       return;
     }
 
-    const logPayload = {
-      generatedAt: new Date().toISOString(),
-      userAgent: navigator.userAgent,
-      modes: {
-        diagnosticMode: this.state.diagnosticMode,
-        ultraXRayMode: this.state.ultraXRayMode,
-        snippetLanguage: this.state.snippetLanguage,
-      },
-      stackSummary: this.state.stack.map((request, index) => ({
-        index,
-        displayRequestUrl: request.displayRequestUrl,
-        hasCode: Boolean(request.code),
-        codeLength: request.code ? request.code.length : 0,
-        batchSnippetCount: request.batchCodeSnippets
-          ? request.batchCodeSnippets.length
-          : 0,
-      })),
-      logs: this.state.diagnosticLogs,
-    };
+    const logPayload = buildDiagnosticExportPayload(
+      this.buildCurrentSessionSnapshot()
+    );
     const fileName = `GraphXRayDiagnostics-${new Date()
       .toISOString()
       .replace(/[:.]/g, "-")}.json`;
 
-    this.downloadFile(
+    downloadContentAsFile(
       JSON.stringify(logPayload, null, 2),
       fileName,
       "application/json"
     );
   };
-
-  getSaveScriptContent() {
-    const sections = [];
-    const seenSections = new Set();
-
-    const appendUniqueSection = (section) => {
-      const normalizedSection = section && section.trim();
-      if (!normalizedSection || seenSections.has(normalizedSection)) {
-        return;
-      }
-
-      seenSections.add(normalizedSection);
-      sections.push(normalizedSection);
-    };
-
-    this.state.stack.forEach((request) => {
-      if (request.code && request.code.trim()) {
-        appendUniqueSection(request.code);
-      }
-
-      if (request.batchCodeSnippets && request.batchCodeSnippets.length > 0) {
-        request.batchCodeSnippets.forEach((snippet) => {
-          if (snippet.code && snippet.code.trim()) {
-            appendUniqueSection(snippet.code);
-          }
-        });
-      }
-    });
-
-    return sections.join("\n\n");
-  }
-
-  async downloadFile(content, filename, mimeType = "text/plain") {
-    const file = new Blob([content], {
-      type: mimeType,
-    });
-    const objectUrl = URL.createObjectURL(file);
-
-    try {
-      const downloadId = await downloadExtensionFile({
-        url: objectUrl,
-        filename,
-        saveAs: true,
-      });
-
-      if (downloadId !== null && downloadId !== undefined) {
-        setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
-        return;
-      }
-    } catch (error) {
-      console.log(
-        "downloads.download failed, falling back to anchor click:",
-        error
-      );
-    }
-
-    const element = document.createElement("a");
-    element.href = objectUrl;
-    element.download = filename;
-    element.style.display = "none";
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
-    setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
-  }
 
   addDiagnosticLogListener() {
     addRuntimeMessageListener((message) => {
@@ -320,7 +347,10 @@ class DevTools extends React.Component {
     );
     console.log("DevTools - getCodeView returned:", codeView);
     if (codeView) {
-      this.setState({ stack: [...this.state.stack, codeView] });
+      this.setState(
+        { stack: [...this.state.stack, codeView] },
+        this.scheduleSessionSync
+      );
       this.recordDiagnostic("request_processing_completed", {
         displayRequestUrl: codeView.displayRequestUrl,
         hasCode: Boolean(codeView.code),
@@ -392,16 +422,21 @@ class DevTools extends React.Component {
 
   onLanguageChange = (e, option) => {
     const previousLanguage = this.state.snippetLanguage;
-    this.setState({ snippetLanguage: option.key, stack: [] });
-    this.recordDiagnostic("language_changed", {
-      from: previousLanguage,
-      to: option.key,
-      stackCleared: true,
-    });
+    this.setState(
+      { snippetLanguage: option.key, stack: [] },
+      () => {
+        this.scheduleSessionSync();
+        this.recordDiagnostic("language_changed", {
+          from: previousLanguage,
+          to: option.key,
+          stackCleared: true,
+        });
+      }
+    );
   };
 
   onUltraXRayToggle = (e, checked) => {
-    this.setState({ ultraXRayMode: checked });
+    this.setState({ ultraXRayMode: checked }, this.scheduleSessionSync);
     localStorage.setItem("graphxray-ultraXRayMode", JSON.stringify(checked));
     this.clearStack();
     this.recordDiagnostic("ultra_xray_toggled", {
@@ -420,6 +455,7 @@ class DevTools extends React.Component {
         diagnosticLogs: checked ? [] : previousState.diagnosticLogs,
       }),
       () => {
+        this.scheduleSessionSync();
         if (checked) {
           this.recordDiagnostic("diagnostic_mode_enabled", {
             snippetLanguage: this.state.snippetLanguage,
@@ -444,6 +480,7 @@ class DevTools extends React.Component {
             <AppHeader hideSettings={true}></AppHeader>
             <DevToolsCommandBar
               clearSession={this.clearSession}
+              openDashboard={this.openDashboard}
               saveScript={this.saveScript}
               saveLogs={this.saveLogs}
               copyScript={this.copyScript}
@@ -502,9 +539,9 @@ class DevTools extends React.Component {
               <Dropdown
                 placeholder="Select an option"
                 label="Select language"
-                options={options}
+                options={SNIPPET_LANGUAGE_OPTIONS}
                 styles={dropdownStyles}
-                defaultSelectedKey={this.state.snippetLanguage}
+                selectedKey={this.state.snippetLanguage}
                 onChange={this.onLanguageChange}
               />
 

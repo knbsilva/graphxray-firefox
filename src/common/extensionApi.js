@@ -78,6 +78,20 @@ const queryTabs = async (queryInfo) => {
   );
 };
 
+const createTab = async (createProperties) => {
+  if (!extensionApi?.tabs?.create) {
+    return null;
+  }
+
+  if (browserApi) {
+    return extensionApi.tabs.create(createProperties);
+  }
+
+  return wrapChromeCallback((callback) =>
+    extensionApi.tabs.create(createProperties, callback)
+  );
+};
+
 const openExtensionOptionsPage = async () => {
   if (extensionApi?.runtime?.openOptionsPage) {
     if (browserApi) {
@@ -130,6 +144,24 @@ const getExtensionUrl = (path) => {
   return extensionApi.runtime.getURL(path);
 };
 
+const openExtensionPage = async (path) => {
+  const url = getExtensionUrl(path);
+
+  if (extensionApi?.tabs?.create) {
+    try {
+      return await createTab({ url });
+    } catch (error) {
+      console.log("Could not create extension tab, falling back to window.open:", error);
+    }
+  }
+
+  if (typeof window !== "undefined" && url) {
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+
+  return null;
+};
+
 const getHostWebview = () => {
   if (typeof window === "undefined") {
     return null;
@@ -170,17 +202,33 @@ const addRuntimeMessageListener = (listener) => {
   });
 };
 
+const addStorageChangeListener = (listener) => {
+  if (!extensionApi?.storage?.onChanged?.addListener) {
+    return () => {};
+  }
+
+  const wrappedListener = (changes, areaName) => listener(changes, areaName);
+  extensionApi.storage.onChanged.addListener(wrappedListener);
+
+  return () => {
+    extensionApi.storage?.onChanged?.removeListener?.(wrappedListener);
+  };
+};
+
 export {
   extensionApi,
   sendRuntimeMessage,
   setStorageLocal,
   getStorageLocal,
   queryTabs,
+  createTab,
   openExtensionOptionsPage,
   downloadFile,
   getExtensionUrl,
+  openExtensionPage,
   getHostWebview,
   getDevtoolsApi,
   isFirefoxBrowser,
   addRuntimeMessageListener,
+  addStorageChangeListener,
 };
