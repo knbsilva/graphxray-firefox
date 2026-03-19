@@ -73,3 +73,10 @@
 - Added storage-based session synchronization so the standalone dashboard and DevTools panel stay aligned without replacing the existing panel behavior.
 - Added `Open dashboard` entry points from the DevTools command bar, popup, and command menu.
 - Added a searchable standalone dashboard UI with session summary, request list, detailed request view, and the existing `Save script`/`Save logs`/`Clear session` actions.
+
+### Dashboard And Guide Refinements
+
+- Added collapsible snippet sections to both the DevTools panel and the standalone dashboard so generated code can be expanded only when needed.
+- Added HTTP method filtering in the standalone dashboard for `GET`, `POST`, `PATCH`, `PUT`, and `DELETE`.
+- Reworked the built-in usage guide to be Firefox-only and text-only, removing screenshots, GIFs, and references to non-Firefox browsers.
+- Updated repository links so feedback goes to the Firefox fork and README support guidance distinguishes between Issues for bugs and Discussions for general conversation.

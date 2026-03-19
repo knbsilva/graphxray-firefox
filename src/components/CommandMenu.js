@@ -74,8 +74,7 @@ const _overflowItems = [
   {
     key: "feedback",
     text: "Feedback",
-    onClick: () =>
-      window.open("https://github.com/merill/graphxray/issues"),
+    onClick: () => window.open("https://github.com/knbsilva/graphxray-firefox"),
     iconProps: { iconName: "Feedback" },
   },
 ];

@@ -503,7 +503,7 @@ class DevTools extends React.Component {
               Graph APIs. Turn on <strong>Ultra X-Ray</strong> mode to see all
               API calls (open a{" "}
               <a
-                href="https://github.com/merill/graphxray/issues"
+                href="https://github.com/knbsilva/graphxray-firefox/issues"
                 target="_blank"
                 rel="noreferrer"
               >

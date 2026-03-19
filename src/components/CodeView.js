@@ -8,6 +8,8 @@ import { IconButton } from "@fluentui/react/lib/Button";
 
 export const CodeView = ({ request, lightUrl, snippetLanguage }) => {
   const [isRequestBodyExpanded, setIsRequestBodyExpanded] = useState(false);
+  const [isSnippetExpanded, setIsSnippetExpanded] = useState(false);
+  const [isBatchSnippetsExpanded, setIsBatchSnippetsExpanded] = useState(false);
   const [hoveredButton, setHoveredButton] = useState(null);
 
   let urlStyle = atomOneDark;
@@ -143,6 +145,89 @@ export const CodeView = ({ request, lightUrl, snippetLanguage }) => {
   const toggleRequestBody = () => {
     setIsRequestBodyExpanded(!isRequestBodyExpanded);
   };
+
+  const toggleSnippet = () => {
+    setIsSnippetExpanded(!isSnippetExpanded);
+  };
+
+  const toggleBatchSnippets = () => {
+    setIsBatchSnippetsExpanded(!isBatchSnippetsExpanded);
+  };
+
+  const renderCollapseHeader = (expanded, onToggle, label, subtitle = "") => (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: "10px",
+        marginTop: "12px",
+        marginBottom: "8px",
+        padding: "8px 10px",
+        borderRadius: "8px",
+        backgroundColor: "rgba(15, 23, 42, 0.04)",
+        border: "1px solid rgba(15, 23, 42, 0.08)",
+      }}
+    >
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onToggle}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onToggle();
+          }
+        }}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          border: "none",
+          background: "transparent",
+          padding: 0,
+          cursor: "pointer",
+          color: "#0f172a",
+          font: "inherit",
+        }}
+      >
+        <IconButton
+          iconProps={{ iconName: expanded ? "ChevronDown" : "ChevronRight" }}
+          title={expanded ? `Collapse ${label}` : `Expand ${label}`}
+          styles={{
+            root: {
+              minWidth: "24px",
+              width: "24px",
+              height: "24px",
+              color: "#0f172a",
+            },
+          }}
+        />
+        <div>
+          <div
+            style={{
+              fontSize: "14px",
+              fontWeight: 700,
+              textAlign: "left",
+            }}
+          >
+            {label}
+          </div>
+          {subtitle && (
+            <div
+              style={{
+                fontSize: "12px",
+                color: "#64748b",
+                textAlign: "left",
+              }}
+            >
+              {subtitle}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 
   // Process batch content if applicable
   const batchData = processBatchContent(request.requestBody, request.responseContent);
@@ -539,7 +624,18 @@ export const CodeView = ({ request, lightUrl, snippetLanguage }) => {
           </div>
         )}
 
-      {request.code && request.code.length > 0 && (
+      {request.code &&
+        request.code.length > 0 &&
+        renderCollapseHeader(
+          isSnippetExpanded,
+          toggleSnippet,
+          "Snippet",
+          request.codeSource === "fallback"
+            ? "Generated locally because DevX did not return a snippet."
+            : "Expand to inspect the generated code."
+        )}
+
+      {request.code && request.code.length > 0 && isSnippetExpanded && (
         <div style={{ position: "relative" }}>
           <SyntaxHighlighter
             language={syntaxLanguage}
@@ -592,16 +688,19 @@ export const CodeView = ({ request, lightUrl, snippetLanguage }) => {
       )}
 
       {/* Batch code snippets - show individual code blocks for each request in the batch */}
-      {request.batchCodeSnippets && request.batchCodeSnippets.length > 0 && (
+      {request.batchCodeSnippets &&
+        request.batchCodeSnippets.length > 0 &&
+        renderCollapseHeader(
+          isBatchSnippetsExpanded,
+          toggleBatchSnippets,
+          "Individual request snippets",
+          `${request.batchCodeSnippets.length} generated snippets inside this batch request.`
+        )}
+
+      {request.batchCodeSnippets &&
+        request.batchCodeSnippets.length > 0 &&
+        isBatchSnippetsExpanded && (
         <div style={{ marginTop: "15px" }}>
-          <div style={{
-            fontSize: "16px",
-            fontWeight: "bold",
-            color: "#333",
-            marginBottom: "16px"
-          }}>
-            Individual Request Code Snippets
-          </div>
           {request.batchCodeSnippets.map((snippet, index) => (
             <div key={snippet.id} style={{
               marginBottom: index < request.batchCodeSnippets.length - 1 ? "20px" : "0"

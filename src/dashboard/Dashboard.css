@@ -96,6 +96,13 @@
   margin-top: 16px;
 }
 
+.DashboardFilters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 240px;
+  gap: 12px;
+  align-items: end;
+}
+
 .DashboardList {
   display: flex;
   flex-direction: column;
@@ -192,6 +199,10 @@
 @media (max-width: 1100px) {
   .DashboardHero,
   .DashboardShell {
+    grid-template-columns: 1fr;
+  }
+
+  .DashboardFilters {
     grid-template-columns: 1fr;
   }
 

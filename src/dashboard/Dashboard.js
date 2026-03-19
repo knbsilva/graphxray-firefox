@@ -2,6 +2,7 @@ import React from "react";
 import "./Dashboard.css";
 import { SearchBox } from "@fluentui/react/lib/SearchBox";
 import { DefaultButton, PrimaryButton } from "@fluentui/react/lib/Button";
+import { Dropdown } from "@fluentui/react/lib/Dropdown";
 import { FontSizes } from "@fluentui/theme";
 import { getTheme } from "@fluentui/react";
 import { AppHeader } from "../components/AppHeader";
@@ -28,6 +29,18 @@ import {
 import { getSnippetLanguageOption } from "../common/snippetLanguages.js";
 
 const theme = getTheme();
+const HTTP_METHOD_OPTIONS = ["GET", "POST", "PATCH", "PUT", "DELETE"].map(
+  (method) => ({
+    key: method,
+    text: method,
+  })
+);
+const filterDropdownStyles = {
+  dropdown: { width: 240 },
+};
+
+const getEntryMethod = (entry) =>
+  (entry?.displayRequestUrl || "").split(" ")[0] || "GRAPH";
 
 const formatTimestamp = (timestamp) => {
   if (!timestamp) {
@@ -47,6 +60,7 @@ class Dashboard extends React.Component {
     this.state = {
       isLoading: true,
       searchText: "",
+      selectedMethods: [],
       selectedIndex: 0,
       session: createEmptySessionState(),
     };
@@ -115,13 +129,22 @@ class Dashboard extends React.Component {
 
   getFilteredEntries = () => {
     const query = this.state.searchText.trim().toLowerCase();
+    const selectedMethods = this.state.selectedMethods;
     const entries = this.state.session.stack || [];
 
-    if (!query) {
-      return entries;
-    }
-
     return entries.filter((entry) => {
+      const methodMatches =
+        selectedMethods.length === 0 ||
+        selectedMethods.includes(getEntryMethod(entry));
+
+      if (!methodMatches) {
+        return false;
+      }
+
+      if (!query) {
+        return true;
+      }
+
       const haystack = [
         entry.displayRequestUrl,
         entry.requestBody,
@@ -141,6 +164,25 @@ class Dashboard extends React.Component {
     this.setState({
       searchText: newValue || "",
       selectedIndex: 0,
+    });
+  };
+
+  handleMethodFilterChange = (_, option) => {
+    if (!option) {
+      return;
+    }
+
+    this.setState((previousState) => {
+      const nextMethods = option.selected
+        ? [...previousState.selectedMethods, option.key]
+        : previousState.selectedMethods.filter(
+            (method) => method !== option.key
+          );
+
+      return {
+        selectedMethods: nextMethods,
+        selectedIndex: 0,
+      };
     });
   };
 
@@ -218,7 +260,7 @@ class Dashboard extends React.Component {
     return (
       <div className="DashboardList">
         {entries.map((entry, index) => {
-          const [method = "GRAPH"] = (entry.displayRequestUrl || "").split(" ");
+          const method = getEntryMethod(entry);
           const isActive = index === this.state.selectedIndex;
 
           return (
@@ -346,11 +388,22 @@ class Dashboard extends React.Component {
                   </div>
                 </div>
                 <div className="DashboardSearch">
-                  <SearchBox
-                    placeholder="Search URL, request body, response, or code"
-                    value={this.state.searchText}
-                    onChange={this.handleSearchChange}
-                  />
+                  <div className="DashboardFilters">
+                    <SearchBox
+                      placeholder="Search URL, request body, response, or code"
+                      value={this.state.searchText}
+                      onChange={this.handleSearchChange}
+                    />
+                    <Dropdown
+                      placeholder="Filter by HTTP method"
+                      label="HTTP methods"
+                      multiSelect
+                      selectedKeys={this.state.selectedMethods}
+                      options={HTTP_METHOD_OPTIONS}
+                      styles={filterDropdownStyles}
+                      onChange={this.handleMethodFilterChange}
+                    />
+                  </div>
                 </div>
               </div>
             </div>

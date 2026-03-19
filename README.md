@@ -6,8 +6,6 @@ Unlock the power of automation and learning in the Microsoft 365 ecosystem. Grap
 
 Stop spending hours digging through documentation to figure out how to automate a task. Simply perform the action in the portal, and Graph X-Ray will provide you with the corresponding, ready-to-use script. It's the ultimate "learn by doing" tool for Microsoft Graph.
 
-![Demo of opening Graph X-Ray panel](./public/img/tutorial/graphxraydemo.gif)
-
 ## Key Features
 
 - **API Call Inspection**: Capture and inspect all Microsoft Graph API requests (GET, POST, PATCH, DELETE) and their full responses directly within your browser's developer tools.
@@ -79,7 +77,7 @@ The extension works with any web page that makes Graph API calls. We've primaril
 - Microsoft Entra
 - Microsoft Intune
 
-If there are admin portals where you are not seeing Graph X-Ray work as expected, please open an [issue](https://github.com/knbsilva/graphxray-firefox/issues), even better, submit a pull request by following the steps in [Adding non-Graph API calls to Ultra X-Ray](#adding-non-graph-api-calls-to-ultra-x-ray).
+If there are admin portals where you are not seeing Graph X-Ray work as expected, please report the problem in [GitHub Issues](https://github.com/knbsilva/graphxray-firefox/issues). If you want to contribute support for additional endpoints, see [Adding non-Graph API calls to Ultra X-Ray](#adding-non-graph-api-calls-to-ultra-x-ray).
 
 ## Using Graph X-Ray
 
@@ -94,24 +92,11 @@ To view Graph calls in real-time:
 - Make changes in the portal to record and view the corresponding Graph API calls and PowerShell commands
 - Optional: use **Open dashboard** to review the captured session in a separate extension page without staying inside Developer Tools
 
-![Demo of opening Graph X-Ray panel](./public/img/tutorial/graphxraydemo.gif)
-
 ### Step by step guide
 
 #### Open Developer Tools
 
-##### Using the keyboard
-
-- Press **F12** on Windows
-- Press **Cmd+Opt+I** on macOS
-
-##### Using the menu
-
-- Open the Firefox application menu from the top right.
-- Select **More tools**.
-- Select **Web Developer Tools**.
-
-![Screenshot of selecting Developer Tools in Firefox](./public/img/tutorial/Tutorial-1.png)
+- Press **F12** in Firefox, or open the Firefox application menu from the top right, choose **More tools**, and then **Web Developer Tools**.
 
 #### Open the Graph X-Ray panel
 
@@ -121,8 +106,6 @@ If you are using Firefox, open the **Network** tab once before switching to **Gr
 
 If you don't see the Graph X-Ray panel you may need to restart your browser.
 
-![Screenshot of opening Graph X-Ray pane](./public/img/tutorial/Tutorial-2.png)
-
 #### View Graph call stack trace
 
 Make changes in the Azure Portal to view the corresponding Graph API calls and PowerShell commands for the action (e.g. edit a user's profile information and click Save).
@@ -130,8 +113,6 @@ Make changes in the Azure Portal to view the corresponding Graph API calls and P
 Scroll down in the Graph X-Ray panel to view the new stack trace.
 
 You can also click **Open dashboard** from the Graph X-Ray panel or extension popup to review the same captured session in a standalone page.
-
-![Screenshot of viewing graph changes](./public/img/tutorial/Tutorial-3.png)
 
 ## Developer Guide
 
@@ -201,7 +182,8 @@ To add support for a new endpoint.
 
 This is an independently developed application and is not endorsed or supported by Microsoft.
 
-Please share feedback and report issues on [GitHub](https://github.com/knbsilva/graphxray-firefox/issues).
+- Report bugs and problems in [GitHub Issues](https://github.com/knbsilva/graphxray-firefox/issues).
+- Use [GitHub Discussions](https://github.com/knbsilva/graphxray-firefox/discussions) for ideas, questions, and general discussion.
 
 ## Acknowledgements
 
