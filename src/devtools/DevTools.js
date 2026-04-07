@@ -65,6 +65,7 @@ class DevTools extends React.Component {
       : false;
 
     this.state = {
+      capturePaused: false,
       stack: [],
       diagnosticLogs: [],
       diagnosticMode,
@@ -156,6 +157,7 @@ class DevTools extends React.Component {
     }
 
     this.setState({
+      capturePaused: session.modes.capturePaused,
       stack: session.stack,
       diagnosticLogs: session.diagnosticLogs,
       diagnosticMode: session.modes.diagnosticMode,
@@ -186,6 +188,7 @@ class DevTools extends React.Component {
         }
 
         this.setState({
+          capturePaused: nextSession.modes.capturePaused,
           stack: nextSession.stack,
           diagnosticLogs: nextSession.diagnosticLogs,
           diagnosticMode: nextSession.modes.diagnosticMode,
@@ -201,12 +204,92 @@ class DevTools extends React.Component {
       stack: this.state.stack,
       diagnosticLogs: this.state.diagnosticLogs,
       modes: {
+        capturePaused: this.state.capturePaused,
         diagnosticMode: this.state.diagnosticMode,
         snippetLanguage: this.state.snippetLanguage,
         ultraXRayMode: this.state.ultraXRayMode,
       },
       sourceContext,
     });
+
+  buildRequestStackKey = (request, harEntry = null) => {
+    const startedDateTime =
+      harEntry?.startedDateTime ||
+      request?._harEntry?.startedDateTime ||
+      new Date().toISOString();
+
+    return [
+      String(request?.method || "GRAPH").toUpperCase(),
+      request?.url || "unknown-url",
+      startedDateTime,
+    ].join("|");
+  };
+
+  appendStackEntry = (entry) =>
+    new Promise((resolve) => {
+      this.setState(
+        (previousState) => ({
+          stack: [...previousState.stack, entry],
+        }),
+        () => {
+          this.scheduleSessionSync();
+          resolve();
+        }
+      );
+    });
+
+  replaceStackEntry = (requestKey, nextEntry) =>
+    new Promise((resolve) => {
+      this.setState(
+        (previousState) => ({
+          stack: previousState.stack.map((entry) =>
+            entry.requestKey === requestKey ? nextEntry : entry
+          ),
+        }),
+        () => {
+          this.scheduleSessionSync();
+          resolve();
+        }
+      );
+    });
+
+  mergeBatchSnippetUpgrades = (existingSnippets = [], upgradedSnippets = []) => {
+    const upgradeMap = new Map(
+      upgradedSnippets
+        .filter((snippet) => snippet?.id && snippet.code)
+        .map((snippet) => [snippet.id, snippet])
+    );
+
+    let updatedCount = 0;
+    const mergedSnippets = existingSnippets.map((snippet) => {
+      const upgradedSnippet = upgradeMap.get(snippet.id);
+      if (!upgradedSnippet) {
+        return snippet;
+      }
+
+      const snippetChanged =
+        snippet.code !== upgradedSnippet.code ||
+        snippet.codeSource !== upgradedSnippet.codeSource ||
+        snippet.codeError !== upgradedSnippet.codeError;
+
+      if (snippetChanged) {
+        updatedCount += 1;
+      }
+
+      upgradeMap.delete(snippet.id);
+      return snippetChanged ? { ...snippet, ...upgradedSnippet } : snippet;
+    });
+
+    for (const upgradedSnippet of upgradeMap.values()) {
+      mergedSnippets.push(upgradedSnippet);
+      updatedCount += 1;
+    }
+
+    return {
+      snippets: mergedSnippets,
+      updatedCount,
+    };
+  };
 
   scheduleSessionSync = () => {
     if (this.sessionSyncTimeout) {
@@ -316,6 +399,13 @@ class DevTools extends React.Component {
       console.log(event.data);
       const msg = JSON.parse(event.data);
       if (msg.eventName === "GraphCall") {
+        if (this.state.capturePaused) {
+          this.recordDiagnostic("capture_skipped_paused", {
+            source: "host_graph_call",
+            eventName: msg.eventName,
+          });
+          return;
+        }
         console.log("Showing graph call.");
         this.recordDiagnostic("host_graph_call_received", {
           eventName: msg.eventName,
@@ -338,6 +428,128 @@ class DevTools extends React.Component {
       hasHarEntry: Boolean(harEntry),
       snippetLanguage: this.state.snippetLanguage,
     });
+
+    const requestKey = this.buildRequestStackKey(request, harEntry);
+
+    if (this.state.snippetLanguage === "powershell") {
+      const localCodeView = await getCodeView(
+        this.state.snippetLanguage,
+        request,
+        version,
+        harEntry,
+        { preferLocalPowerShell: true },
+        this.recordDiagnosticEntry
+      );
+      console.log("DevTools - local-first getCodeView returned:", localCodeView);
+      if (!localCodeView) {
+        this.recordDiagnostic(
+          "request_processing_skipped",
+          {
+            method: request.method,
+            url: request.url,
+            reason: "code_view_null",
+          },
+          "warning"
+        );
+        return;
+      }
+
+      const localEntry = {
+        ...localCodeView,
+        requestKey,
+      };
+
+      await this.appendStackEntry(localEntry);
+
+      this.recordDiagnostic("snippet_rendered_local", {
+        displayRequestUrl: localEntry.displayRequestUrl,
+        hasCode: Boolean(localEntry.code),
+        codeLength: localEntry.code ? localEntry.code.length : 0,
+        batchSnippetCount: localEntry.batchCodeSnippets
+          ? localEntry.batchCodeSnippets.length
+          : 0,
+        codeSource: localEntry.codeSource,
+      });
+
+      this.recordDiagnostic("request_processing_completed", {
+        displayRequestUrl: localEntry.displayRequestUrl,
+        hasCode: Boolean(localEntry.code),
+        codeLength: localEntry.code ? localEntry.code.length : 0,
+        batchSnippetCount: localEntry.batchCodeSnippets
+          ? localEntry.batchCodeSnippets.length
+          : 0,
+        codeSource: localEntry.codeSource,
+      });
+
+      this.recordDiagnostic("snippet_upgrade_requested", {
+        method: request.method,
+        url: request.url,
+        displayRequestUrl: localEntry.displayRequestUrl,
+      });
+
+      const upgradedCodeView = await getCodeView(
+        this.state.snippetLanguage,
+        request,
+        version,
+        harEntry,
+        { devxOnly: true },
+        this.recordDiagnosticEntry
+      );
+      console.log("DevTools - devx-only getCodeView returned:", upgradedCodeView);
+
+      if (!upgradedCodeView) {
+        this.recordDiagnostic("snippet_kept_local_after_devx_failure", {
+          displayRequestUrl: localEntry.displayRequestUrl,
+          reason: "code_view_null",
+          codeSource: localEntry.codeSource,
+        });
+        return;
+      }
+
+      const mergedBatchSnippets = this.mergeBatchSnippetUpgrades(
+        localEntry.batchCodeSnippets,
+        upgradedCodeView.batchCodeSnippets
+      );
+      const hasMainUpgrade = Boolean(upgradedCodeView.code);
+      const hasBatchUpgrade = mergedBatchSnippets.updatedCount > 0;
+
+      if (hasMainUpgrade || hasBatchUpgrade) {
+        const upgradedEntry = {
+          ...localEntry,
+          code: hasMainUpgrade ? upgradedCodeView.code : localEntry.code,
+          codeError: hasMainUpgrade
+            ? upgradedCodeView.codeError
+            : localEntry.codeError,
+          codeSource: hasMainUpgrade
+            ? upgradedCodeView.codeSource
+            : localEntry.codeSource,
+          batchCodeSnippets: mergedBatchSnippets.snippets,
+        };
+
+        await this.replaceStackEntry(requestKey, upgradedEntry);
+
+        this.recordDiagnostic("snippet_upgraded_from_devx", {
+          displayRequestUrl: upgradedEntry.displayRequestUrl,
+          upgradedMainSnippet: hasMainUpgrade,
+          upgradedBatchSnippetCount: mergedBatchSnippets.updatedCount,
+          codeSource: upgradedEntry.codeSource,
+          batchSnippetCount: upgradedEntry.batchCodeSnippets
+            ? upgradedEntry.batchCodeSnippets.length
+            : 0,
+        });
+        return;
+      }
+
+      this.recordDiagnostic("snippet_kept_local_after_devx_failure", {
+        displayRequestUrl: localEntry.displayRequestUrl,
+        codeSource: localEntry.codeSource,
+        batchSnippetCount: localEntry.batchCodeSnippets
+          ? localEntry.batchCodeSnippets.length
+          : 0,
+      });
+      return;
+    }
+
     const codeView = await getCodeView(
       this.state.snippetLanguage,
       request,
@@ -347,10 +559,10 @@ class DevTools extends React.Component {
     );
     console.log("DevTools - getCodeView returned:", codeView);
     if (codeView) {
-      this.setState(
-        { stack: [...this.state.stack, codeView] },
-        this.scheduleSessionSync
-      );
+      await this.appendStackEntry({
+        ...codeView,
+        requestKey,
+      });
       this.recordDiagnostic("request_processing_completed", {
         displayRequestUrl: codeView.displayRequestUrl,
         hasCode: Boolean(codeView.code),
@@ -380,6 +592,14 @@ class DevTools extends React.Component {
     }
     devtoolsApi.network.onRequestFinished.addListener(async (harEntry) => {
       try {
+        if (this.state.capturePaused) {
+          this.recordDiagnostic("capture_skipped_paused", {
+            source: "network",
+            method: harEntry?.request?.method,
+            url: harEntry?.request?.url,
+          });
+          return;
+        }
         if (
           harEntry.request &&
           harEntry.request.url &&
@@ -466,8 +686,28 @@ class DevTools extends React.Component {
     );
   };
 
+  toggleCapturePaused = async () => {
+    const nextCapturePaused = !this.state.capturePaused;
+    this.setState(
+      {
+        capturePaused: nextCapturePaused,
+      },
+      () => {
+        this.scheduleSessionSync();
+        this.recordDiagnostic(
+          nextCapturePaused ? "capture_paused" : "capture_resumed",
+          {
+            snippetLanguage: this.state.snippetLanguage,
+            ultraXRayMode: this.state.ultraXRayMode,
+          }
+        );
+      }
+    );
+  };
+
   render() {
     const showFirefoxNote = isFirefoxBrowser();
+    const visibleStack = [...this.state.stack].reverse();
 
     return (
       <div className="App" style={{ fontSize: FontSizes.size12 }}>
@@ -479,11 +719,13 @@ class DevTools extends React.Component {
           >
             <AppHeader hideSettings={true}></AppHeader>
             <DevToolsCommandBar
+              capturePaused={this.state.capturePaused}
               clearSession={this.clearSession}
               openDashboard={this.openDashboard}
               saveScript={this.saveScript}
               saveLogs={this.saveLogs}
               copyScript={this.copyScript}
+              toggleCapturePaused={this.toggleCapturePaused}
             ></DevToolsCommandBar>
           </div>
         </Layer>
@@ -526,6 +768,22 @@ class DevTools extends React.Component {
                 using <strong>Graph X-Ray</strong>. Firefox only starts raising
                 `devtools.network.onRequestFinished` after the Network tool has
                 been activated.
+              </div>
+            )}
+            {this.state.capturePaused && (
+              <div
+                style={{
+                  borderLeft: "4px solid #2563eb",
+                  backgroundColor: "#eff6ff",
+                  color: "#1e3a8a",
+                  padding: "10px 12px",
+                  marginBottom: "14px",
+                  borderRadius: "6px",
+                }}
+              >
+                Capture is paused. Graph X-Ray will keep the current session
+                visible, but it will not append new entries until you resume
+                capture.
               </div>
             )}
             <div
@@ -652,9 +910,9 @@ class DevTools extends React.Component {
                 marginBottom: "15px",
               }}
             >
-              {this.state.stack.map((request, index) => (
+              {visibleStack.map((request, index) => (
                 <div
-                  key={index}
+                  key={request.requestKey || index}
                   style={{
                     boxShadow: theme.effects.elevation16,
                     padding: "10px",

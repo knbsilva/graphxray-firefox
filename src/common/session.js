@@ -3,6 +3,7 @@ import { downloadFile as downloadExtensionFile } from "./extensionApi.js";
 const GRAPHXRAY_SESSION_STORAGE_KEY = "graphxraySession";
 
 const DEFAULT_SESSION_MODES = {
+  capturePaused: false,
   diagnosticMode: false,
   snippetLanguage: "powershell",
   ultraXRayMode: false,
@@ -117,15 +118,35 @@ const downloadContentAsFile = async (
   const objectUrl = URL.createObjectURL(file);
 
   try {
-    const downloadId = await downloadExtensionFile({
+    const downloadResult = await downloadExtensionFile({
       url: objectUrl,
       filename,
       saveAs: true,
     });
 
-    if (downloadId !== null && downloadId !== undefined) {
+    if (downloadResult?.status === "saved") {
       setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
-      return;
+      return {
+        status: "saved",
+      };
+    }
+
+    if (downloadResult?.status === "cancelled") {
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+      return {
+        status: "cancelled",
+      };
+    }
+
+    if (downloadResult?.status === "unsupported") {
+      console.log(
+        "downloads.download is not available, falling back to anchor click."
+      );
+    } else if (downloadResult?.status === "error") {
+      console.log(
+        "downloads.download failed, falling back to anchor click:",
+        downloadResult.error
+      );
     }
   } catch (error) {
     console.log(
@@ -142,6 +163,9 @@ const downloadContentAsFile = async (
   element.click();
   document.body.removeChild(element);
   setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+  return {
+    status: "saved",
+  };
 };
 
 export {

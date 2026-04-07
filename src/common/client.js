@@ -254,6 +254,9 @@ const buildFallbackSnippet = (snippetLanguage, method, url, body, options = {}) 
   return null;
 };
 
+const requestMethodSupportsBody = (method = "") =>
+  ["POST", "PATCH", "PUT", "DELETE"].includes(method.toUpperCase());
+
 const resolveSnippetInvocationArgs = (optionsOrLogger, maybeLogger) => {
   if (typeof optionsOrLogger === "function") {
     return {
@@ -294,6 +297,25 @@ const getPowershellCmd = async function (
   }
   
   const bodyText = body ?? ""; //Cast undefined and null to string
+  const preferLocalPowerShell =
+    snippetLanguage === "powershell" && options.preferLocalPowerShell === true;
+  const devxOnly = options.devxOnly === true;
+
+  if (preferLocalPowerShell) {
+    const localCode = buildFallbackSnippet(
+      snippetLanguage,
+      method,
+      url,
+      bodyText,
+      options
+    );
+    return {
+      code: localCode,
+      error: null,
+      source: localCode ? "local" : "none",
+    };
+  }
+
   const { host, path, normalizedUrl } = normalizeGraphRequestUrlForDevX(url);
   let payloadHeaders = `Host: ${host}\r\nContent-Type: application/json`;
   if (method.toUpperCase() === "GET" && options.includeConsistencyLevelHeader) {
@@ -388,9 +410,16 @@ const getPowershellCmd = async function (
           method,
           url,
           normalizedUrl,
-          source: "local",
+          source: "fallback",
           codeLength: fallbackCode.length,
         });
+      }
+      if (devxOnly) {
+        return {
+          code: null,
+          error: errorText,
+          source: "none",
+        };
       }
       return {
         code: fallbackCode,
@@ -430,9 +459,16 @@ const getPowershellCmd = async function (
         method,
         url,
         normalizedUrl,
-        source: "local",
+        source: "fallback",
         codeLength: fallbackCode.length,
       });
+    }
+    if (devxOnly) {
+      return {
+        code: null,
+        error: error?.message || String(error),
+        source: "none",
+      };
     }
     return {
       code: fallbackCode,
@@ -444,6 +480,7 @@ const getPowershellCmd = async function (
 
 const getRequestBody = async function (request, diagnosticLogger = null) {
   let requestBody = "";
+  const method = String(request.method || "").toUpperCase();
   
   console.log("getRequestBody - request object:", request);
   console.log("getRequestBody - request.method:", request.method);
@@ -479,6 +516,14 @@ const getRequestBody = async function (request, diagnosticLogger = null) {
       bodyPreview: createDiagnosticPreview(requestBody),
     });
     return requestBody;
+  }
+
+  if (!requestMethodSupportsBody(method)) {
+    console.log(
+      "getRequestBody - skipping body lookup for method without expected payload:",
+      method
+    );
+    return "";
   }
   
   // If no body found, try to get from background script using URL
@@ -727,6 +772,7 @@ const getBatchCodeSnippets = async function (
   snippetLanguage,
   requestBody,
   baseUrl,
+  options = {},
   diagnosticLogger = null
 ) {
   console.log("Generating code snippets for batch request");
@@ -786,7 +832,7 @@ const getBatchCodeSnippets = async function (
         request.method,
         fullUrl,
         requestBodyText,
-        { includeConsistencyLevelHeader },
+        { ...options, includeConsistencyLevelHeader },
         diagnosticLogger
       );
       
@@ -825,13 +871,32 @@ const getBatchCodeSnippets = async function (
   }
 };
 
+const resolveCodeViewInvocationArgs = (optionsOrLogger, maybeLogger) => {
+  if (typeof optionsOrLogger === "function") {
+    return {
+      options: {},
+      diagnosticLogger: optionsOrLogger,
+    };
+  }
+
+  return {
+    options: optionsOrLogger ?? {},
+    diagnosticLogger: maybeLogger,
+  };
+};
+
 const getCodeView = async function (
   snippetLanguage,
   request,
   version,
   harEntry = null,
-  diagnosticLogger = null
+  optionsOrLogger = {},
+  maybeLogger = null
 ) {
+  const { options, diagnosticLogger } = resolveCodeViewInvocationArgs(
+    optionsOrLogger,
+    maybeLogger
+  );
   if (["OPTIONS"].includes(request.method)) {
     emitDiagnosticLog(diagnosticLogger, "code_view_skipped", {
       method: request.method,
@@ -869,6 +934,7 @@ const getCodeView = async function (
       snippetLanguage,
       requestBody,
       baseUrl,
+      options,
       diagnosticLogger
     );
     
@@ -878,7 +944,7 @@ const getCodeView = async function (
       request.method,
       version + request.url,
       requestBody,
-      { includeConsistencyLevelHeader },
+      { ...options, includeConsistencyLevelHeader },
       diagnosticLogger
     );
     code = snippetResult?.code ?? null;
@@ -891,7 +957,7 @@ const getCodeView = async function (
       request.method,
       version + request.url,
       requestBody,
-      { includeConsistencyLevelHeader },
+      { ...options, includeConsistencyLevelHeader },
       diagnosticLogger
     );
     code = snippetResult?.code ?? null;

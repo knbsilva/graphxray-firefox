@@ -4,7 +4,7 @@
 
 This document records the technical findings from the Firefox fork investigation around DevX snippet generation failures observed on March 18, 2026.
 
-Note: the local mitigation described here has since been improved. The fork now emits PowerShell fallback snippets in an `Invoke-MgGraphRequest` style with structured request-body rendering where possible.
+Note: the local mitigation described here has since been improved. The fork now renders PowerShell locally first in an `Invoke-MgGraphRequest` style, keeps structured request-body rendering where possible, and only attempts to upgrade the snippet with DevX after the local snippet is already visible.
 
 ## Executive Summary
 
@@ -15,7 +15,7 @@ The Graph X-Ray Firefox fork is functioning correctly in the following areas:
 - Request and response payloads are displayed.
 - Diagnostic logs are generated and exported.
 - `Save script` exports a PowerShell session file.
-- Local PowerShell fallback snippets are generated when DevX fails.
+- Local PowerShell snippets are generated immediately, even when DevX later fails.
 
 The remaining problem is upstream of the extension:
 
@@ -202,7 +202,7 @@ Conclusion:
 
 ## Current Local Mitigation
 
-The Firefox fork now uses a local PowerShell fallback when DevX fails, which restores usability for:
+The Firefox fork now uses a local-first PowerShell flow, which restores usability for:
 
 - on-screen snippet rendering
 - copy script
@@ -210,9 +210,11 @@ The Firefox fork now uses a local PowerShell fallback when DevX fails, which res
 
 Current behavior:
 
-- fallback snippets use `Invoke-MgGraphRequest`
+- PowerShell renders locally first instead of waiting on DevX
+- local snippets use `Invoke-MgGraphRequest`
 - original captured URLs are preserved
 - JSON bodies are rendered as readable `$params` blocks when possible
-- `ConsistencyLevel: eventual` is carried into fallback snippets for matching `GET` requests
+- `ConsistencyLevel: eventual` is carried into local PowerShell snippets for matching `GET` requests
+- DevX is now treated as an optional upgrade path for PowerShell instead of the first render dependency
 
 This mitigation is appropriate to keep the extension usable until the upstream DevX issue is resolved.

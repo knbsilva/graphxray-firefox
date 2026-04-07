@@ -58,6 +58,13 @@ const findRequestBodyMatch = (requestBodies, requestDetails) => {
     )[0];
   }
 
+  // Only relax to URL-only matching when the caller did not provide a method.
+  // Otherwise a GET can accidentally inherit the body from a nearby PATCH/POST
+  // to the same endpoint.
+  if (method) {
+    return null;
+  }
+
   return requestBodies.find((entry) => entry.url === url) || null;
 };
 

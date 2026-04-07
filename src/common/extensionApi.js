@@ -3,6 +3,7 @@ const browserApi = typeof browser !== "undefined" ? browser : null;
 const chromeApi = typeof chrome !== "undefined" ? chrome : null;
 
 const extensionApi = browserApi || chromeApi || null;
+const DOWNLOAD_CANCELLED_PATTERN = /cancel|canceled|cancelled|aborted|user canceled/i;
 
 const wrapChromeCallback = (invoke) =>
   new Promise((resolve, reject) => {
@@ -111,29 +112,64 @@ const openExtensionOptionsPage = async () => {
   return undefined;
 };
 
+const normalizeDownloadError = (error) => {
+  const message = error?.message || String(error || "");
+  return {
+    message,
+    cancelled: DOWNLOAD_CANCELLED_PATTERN.test(message),
+  };
+};
+
 const downloadFile = async ({ url, filename, saveAs = true }) => {
   if (!extensionApi?.downloads?.download) {
-    return null;
+    return {
+      status: "unsupported",
+      downloadId: null,
+    };
   }
 
-  if (browserApi) {
-    return extensionApi.downloads.download({
-      url,
-      filename,
-      saveAs,
-    });
-  }
-
-  return wrapChromeCallback((callback) =>
-    extensionApi.downloads.download(
-      {
+  try {
+    if (browserApi) {
+      const downloadId = await extensionApi.downloads.download({
         url,
         filename,
         saveAs,
-      },
-      callback
-    )
-  );
+      });
+      return {
+        status:
+          downloadId === null || downloadId === undefined
+            ? "cancelled"
+            : "saved",
+        downloadId,
+      };
+    }
+
+    const downloadId = await wrapChromeCallback((callback) =>
+      extensionApi.downloads.download(
+        {
+          url,
+          filename,
+          saveAs,
+        },
+        callback
+      )
+    );
+
+    return {
+      status:
+        downloadId === null || downloadId === undefined
+          ? "cancelled"
+          : "saved",
+      downloadId,
+    };
+  } catch (error) {
+    const normalizedError = normalizeDownloadError(error);
+    return {
+      status: normalizedError.cancelled ? "cancelled" : "error",
+      downloadId: null,
+      error: normalizedError.message,
+    };
+  }
 };
 
 const getExtensionUrl = (path) => {

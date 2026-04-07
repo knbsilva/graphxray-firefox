@@ -148,6 +148,17 @@ export const CodeView = ({ request, lightUrl, snippetLanguage }) => {
     }
   };
 
+  const createStableHash = (value = "") => {
+    let hash = 2166136261;
+
+    for (let index = 0; index < value.length; index += 1) {
+      hash ^= value.charCodeAt(index);
+      hash = Math.imul(hash, 16777619);
+    }
+
+    return (hash >>> 0).toString(36);
+  };
+
   const sanitizeFileNameSegment = (value = "") =>
     value
       .replace(/^https?:\/\//i, "")
@@ -155,12 +166,51 @@ export const CodeView = ({ request, lightUrl, snippetLanguage }) => {
       .replace(/^-+|-+$/g, "")
       .slice(0, 80) || "entry";
 
-  const getEntryFileNameBase = () => {
-    const source = requestUrl || request.displayRequestUrl || "graphxray-entry";
-    return sanitizeFileNameSegment(`${requestMethod}-${source}`);
+  const getEntryFileNameBase = (
+    targetUrl = requestUrl || request.displayRequestUrl || "graphxray-entry",
+    targetMethod = requestMethod,
+    extraParts = []
+  ) => {
+    try {
+      const url = new URL(targetUrl);
+      const pathSegments = url.pathname
+        .split("/")
+        .filter(Boolean)
+        .map((segment) => sanitizeFileNameSegment(segment).slice(0, 24))
+        .filter(Boolean)
+        .slice(-4);
+      const queryKeys = [...url.searchParams.keys()]
+        .map((key) => sanitizeFileNameSegment(`q-${key}`).slice(0, 18))
+        .filter(Boolean)
+        .slice(0, 2);
+      const hash = createStableHash(`${targetMethod} ${targetUrl}`).slice(0, 8);
+
+      return [
+        sanitizeFileNameSegment(targetMethod.toUpperCase()),
+        sanitizeFileNameSegment(url.host).slice(0, 32),
+        ...pathSegments,
+        ...queryKeys,
+        ...extraParts.map((part) => sanitizeFileNameSegment(part)).filter(Boolean),
+        hash,
+      ]
+        .filter(Boolean)
+        .join("-")
+        .slice(0, 160);
+    } catch (error) {
+      const hash = createStableHash(`${targetMethod} ${targetUrl}`).slice(0, 8);
+      return [
+        sanitizeFileNameSegment(targetMethod.toUpperCase()),
+        sanitizeFileNameSegment(targetUrl).slice(0, 96),
+        ...extraParts.map((part) => sanitizeFileNameSegment(part)).filter(Boolean),
+        hash,
+      ]
+        .filter(Boolean)
+        .join("-")
+        .slice(0, 160);
+    }
   };
 
-  const getResponseFileDescriptor = (content) => {
+  const getContentFileDescriptor = (content) => {
     if (!content || typeof content !== "string") {
       return {
         extension: "txt",
@@ -182,12 +232,12 @@ export const CodeView = ({ request, lightUrl, snippetLanguage }) => {
     }
   };
 
-  const saveResponseToFile = async (content, suffix = "response") => {
+  const saveRequestToFile = async (content, suffix = "request") => {
     if (!content || !content.trim()) {
       return;
     }
 
-    const descriptor = getResponseFileDescriptor(content);
+    const descriptor = getContentFileDescriptor(content);
     await downloadContentAsFile(
       content,
       `GraphXRay-${suffix}-${getEntryFileNameBase()}.${descriptor.extension}`,
@@ -195,7 +245,26 @@ export const CodeView = ({ request, lightUrl, snippetLanguage }) => {
     );
   };
 
-  const saveSnippetToFile = async (content, suffix = "snippet") => {
+  const saveResponseToFile = async (content, suffix = "response") => {
+    if (!content || !content.trim()) {
+      return;
+    }
+
+    const descriptor = getContentFileDescriptor(content);
+    await downloadContentAsFile(
+      content,
+      `GraphXRay-${suffix}-${getEntryFileNameBase()}.${descriptor.extension}`,
+      descriptor.mimeType
+    );
+  };
+
+  const saveSnippetToFile = async (
+    content,
+    suffix = "snippet",
+    targetUrl = requestUrl || request.displayRequestUrl || "graphxray-entry",
+    targetMethod = requestMethod,
+    extraParts = []
+  ) => {
     if (!content || !content.trim()) {
       return;
     }
@@ -203,7 +272,11 @@ export const CodeView = ({ request, lightUrl, snippetLanguage }) => {
     const languageOption = getSnippetLanguageOption(snippetLanguage);
     await downloadContentAsFile(
       content,
-      `GraphXRay-${suffix}-${getEntryFileNameBase()}.${languageOption.fileExt}`
+      `GraphXRay-${suffix}-${getEntryFileNameBase(
+        targetUrl,
+        targetMethod,
+        extraParts
+      )}.${languageOption.fileExt}`
     );
   };
 
@@ -219,7 +292,51 @@ export const CodeView = ({ request, lightUrl, snippetLanguage }) => {
     setIsBatchSnippetsExpanded(!isBatchSnippetsExpanded);
   };
 
-  const renderCollapseHeader = (expanded, onToggle, label, subtitle = "") => (
+  const getSnippetSourceMeta = (source) => {
+    if (source === "local") {
+      return {
+        label: "Local snippet",
+        subtitle:
+          "Rendered locally first. Graph X-Ray can still replace it if DevX returns a snippet later.",
+        styles: {
+          backgroundColor: "#dcfce7",
+          color: "#166534",
+        },
+      };
+    }
+
+    if (source === "fallback") {
+      return {
+        label: "Local fallback",
+        subtitle: "Generated locally because DevX did not return a snippet.",
+        styles: {
+          backgroundColor: "#fef3c7",
+          color: "#92400e",
+        },
+      };
+    }
+
+    if (source === "devx") {
+      return {
+        label: "DevX snippet",
+        subtitle: "Generated by the Microsoft Graph snippet service.",
+        styles: {
+          backgroundColor: "#dbeafe",
+          color: "#1d4ed8",
+        },
+      };
+    }
+
+    return null;
+  };
+
+  const renderCollapseHeader = (
+    expanded,
+    onToggle,
+    label,
+    subtitle = "",
+    actions = null
+  ) => (
     <div
       style={{
         display: "flex",
@@ -291,6 +408,18 @@ export const CodeView = ({ request, lightUrl, snippetLanguage }) => {
           )}
         </div>
       </div>
+      {actions && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            flexWrap: "wrap",
+          }}
+        >
+          {actions}
+        </div>
+      )}
     </div>
   );
 
@@ -314,6 +443,7 @@ export const CodeView = ({ request, lightUrl, snippetLanguage }) => {
 
   // Process batch content if applicable
   const batchData = processBatchContent(request.requestBody, request.responseContent);
+  const snippetSourceMeta = getSnippetSourceMeta(request.codeSource);
 
   return (
     <div>
@@ -574,7 +704,33 @@ export const CodeView = ({ request, lightUrl, snippetLanguage }) => {
                         color: "#333",
                         marginBottom: "8px"
                       }}>
-                        Request
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: "8px",
+                          }}
+                        >
+                          <span>Request</span>
+                          <IconButton
+                            iconProps={{ iconName: "Download" }}
+                            title="Save request"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              saveRequestToFile(request.requestBody);
+                            }}
+                            styles={{
+                              root: {
+                                minWidth: "28px",
+                                width: "28px",
+                                height: "28px",
+                                color: "#334155",
+                              },
+                            }}
+                          />
+                        </div>
                       </div>
                       <div style={{ position: "relative" }}>
                         <SyntaxHighlighter
@@ -751,9 +907,33 @@ export const CodeView = ({ request, lightUrl, snippetLanguage }) => {
           isSnippetExpanded,
           toggleSnippet,
           "Snippet",
-          request.codeSource === "fallback"
-            ? "Generated locally because DevX did not return a snippet."
-            : "Expand to inspect the generated code."
+          snippetSourceMeta
+            ? snippetSourceMeta.subtitle
+            : "Expand to inspect the generated code.",
+          <>
+            {snippetSourceMeta &&
+              renderStatusBadge(
+                snippetSourceMeta.label,
+                snippetSourceMeta.styles
+              )}
+            <IconButton
+              iconProps={{ iconName: "Download" }}
+              title="Save snippet"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                saveSnippetToFile(request.code);
+              }}
+              styles={{
+                root: {
+                  minWidth: "28px",
+                  width: "28px",
+                  height: "28px",
+                  color: "#334155",
+                },
+              }}
+            />
+          </>
         )}
 
       {request.code && request.code.length > 0 && isSnippetExpanded && (
@@ -771,7 +951,7 @@ export const CodeView = ({ request, lightUrl, snippetLanguage }) => {
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                saveSnippetToFile(request.code, "snippet");
+                saveSnippetToFile(request.code);
               }}
               styles={{
                 root: {
@@ -866,29 +1046,46 @@ export const CodeView = ({ request, lightUrl, snippetLanguage }) => {
                     gap: "8px",
                   }}
                 >
-                  <span>
-                    Request ID: {snippet.id} - {snippet.method} {snippet.url}
-                  </span>
-                  <IconButton
-                    iconProps={{ iconName: "Download" }}
-                    title="Save individual snippet"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      saveSnippetToFile(
-                        snippet.code,
-                        `snippet-${sanitizeFileNameSegment(snippet.id)}`
-                      );
+                          <span>
+                            Request ID: {snippet.id} - {snippet.method} {snippet.url}
+                          </span>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
                     }}
-                    styles={{
-                      root: {
-                        minWidth: "28px",
-                        width: "28px",
-                        height: "28px",
-                        color: "#334155",
-                      },
-                    }}
-                  />
+                  >
+                    {snippet.codeSource &&
+                      renderStatusBadge(
+                        getSnippetSourceMeta(snippet.codeSource)?.label ||
+                          "Snippet",
+                        getSnippetSourceMeta(snippet.codeSource)?.styles || {}
+                      )}
+                    <IconButton
+                      iconProps={{ iconName: "Download" }}
+                      title="Save individual snippet"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        saveSnippetToFile(
+                          snippet.code,
+                          "snippet",
+                          snippet.url,
+                          snippet.method,
+                          [snippet.id]
+                        );
+                      }}
+                      styles={{
+                        root: {
+                          minWidth: "28px",
+                          width: "28px",
+                          height: "28px",
+                          color: "#334155",
+                        },
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
               <div style={{ position: "relative" }}>

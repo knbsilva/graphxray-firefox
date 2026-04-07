@@ -24,6 +24,16 @@ class DevToolsCommandBar extends React.Component {
         onClick: this.props.saveLogs,
         iconProps: { iconName: "DiagnosticDataBarTooltip" },
       },
+      this.props.toggleCapturePaused
+        ? {
+            key: "capture",
+            text: this.props.capturePaused ? "Resume capture" : "Pause capture",
+            onClick: this.props.toggleCapturePaused,
+            iconProps: {
+              iconName: this.props.capturePaused ? "Play" : "Pause",
+            },
+          }
+        : null,
       {
         key: "clear",
         text: "Clear session",

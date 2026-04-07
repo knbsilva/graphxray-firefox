@@ -93,3 +93,15 @@
 - Added structured PowerShell body generation that converts JSON request payloads into readable `$params` blocks and keeps a raw-body fallback when parsing is not possible.
 - Propagated `ConsistencyLevel: eventual` into both DevX requests and local PowerShell fallback snippets for matching `GET` requests and batch subrequests.
 - Added the upstream `admin.powerplatform.microsoft.com` and `admin.cloud.microsoft` Ultra X-Ray domains to the centralized domain list and Firefox host permissions.
+- Fixed request-body cache correlation so `GET` requests no longer inherit bodies from nearby `PATCH` or `POST` calls to the same URL.
+- Switched PowerShell snippet rendering to a local-first flow so DevTools shows a local `Invoke-MgGraphRequest` snippet immediately and only upgrades it if DevX returns a valid snippet later.
+- Added explicit diagnostic events for local PowerShell rendering, DevX upgrade attempts, successful upgrades, and cases where the local snippet is kept after DevX failure.
+- Reduced request-body diagnostic noise by skipping missing-body warnings for methods that normally do not send payloads.
+- Moved the per-entry snippet download action into the snippet collapse header so it remains visible even when the snippet body is still collapsed.
+- Added visible snippet-source badges (`Local snippet`, `Local fallback`, `DevX snippet`) so the UI makes the current origin of each snippet explicit.
+- Reworked per-entry export file naming to include method, host, route context, and a stable short hash, reducing ambiguity between similar endpoints.
+- Added per-entry `Save request` actions for entries that include a request body.
+- Fixed Firefox save-dialog cancellation so canceling an export no longer falls back to the browser's default download folder.
+- Switched the visible session order in DevTools and the standalone dashboard to newest-first while preserving chronological session exports.
+- Added a shared `Pause capture` / `Resume capture` command so DevTools and dashboard can stop or resume appending new entries without clearing the current session.
+- Added capture status UI and matching diagnostics for pause/resume and skipped captures while paused.

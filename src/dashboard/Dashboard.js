@@ -15,6 +15,10 @@ import {
   openExtensionOptionsPage,
 } from "../common/extensionApi.js";
 import {
+  buildDiagnosticEntry,
+  MAX_DIAGNOSTIC_LOG_ENTRIES,
+} from "../common/diagnostics.js";
+import {
   getGraphXRaySession,
   saveGraphXRaySession,
 } from "../common/storage.js";
@@ -64,7 +68,7 @@ class Dashboard extends React.Component {
       isLoading: true,
       searchText: "",
       selectedMethods: [],
-      selectedIndex: 0,
+      selectedEntryKey: null,
       session: createEmptySessionState(),
     };
     this.removeStorageChangeListener = null;
@@ -83,14 +87,24 @@ class Dashboard extends React.Component {
 
   loadSession = async () => {
     const session = normalizeSessionState(await getGraphXRaySession());
-    this.setState((previousState) => ({
-      isLoading: false,
-      session,
-      selectedIndex: this.getNextSelectedIndex(
-        previousState.selectedIndex,
-        session.stack.length
-      ),
-    }));
+    this.setState((previousState) => {
+      const previousVisibleEntries = this.getVisibleEntries(previousState.session);
+      const nextVisibleEntries = this.getVisibleEntries(
+        session,
+        previousState.searchText,
+        previousState.selectedMethods
+      );
+
+      return {
+        isLoading: false,
+        session,
+        selectedEntryKey: this.resolveNextSelectedEntryKey({
+          previousVisibleEntries,
+          nextVisibleEntries,
+          previousSelectedEntryKey: previousState.selectedEntryKey,
+        }),
+      };
+    });
   };
 
   addSessionStorageListener = () => {
@@ -110,63 +124,125 @@ class Dashboard extends React.Component {
           changes[GRAPHXRAY_SESSION_STORAGE_KEY]?.newValue
         );
 
-        this.setState((previousState) => ({
-          isLoading: false,
-          session,
-          selectedIndex: this.getNextSelectedIndex(
-            previousState.selectedIndex,
-            session.stack.length
-          ),
-        }));
+        this.setState((previousState) => {
+          const previousVisibleEntries = this.getVisibleEntries(previousState.session);
+          const nextVisibleEntries = this.getVisibleEntries(
+            session,
+            previousState.searchText,
+            previousState.selectedMethods
+          );
+
+          return {
+            isLoading: false,
+            session,
+            selectedEntryKey: this.resolveNextSelectedEntryKey({
+              previousVisibleEntries,
+              nextVisibleEntries,
+              previousSelectedEntryKey: previousState.selectedEntryKey,
+            }),
+          };
+        });
       }
     );
   };
 
-  getNextSelectedIndex = (currentIndex, itemCount) => {
-    if (itemCount <= 0) {
-      return 0;
-    }
+  getEntryKey = (entry, originalIndex) =>
+    entry?.requestKey || `${entry?.displayRequestUrl || "entry"}|${originalIndex}`;
 
-    return Math.min(currentIndex, itemCount - 1);
+  getVisibleEntries = (
+    session = this.state.session,
+    searchText = this.state.searchText,
+    selectedMethods = this.state.selectedMethods
+  ) => {
+    const query = searchText.trim().toLowerCase();
+    const entries = session.stack || [];
+
+    return entries
+      .map((entry, originalIndex) => ({
+        entry,
+        entryKey: this.getEntryKey(entry, originalIndex),
+        originalIndex,
+      }))
+      .filter(({ entry }) => {
+        const methodMatches =
+          selectedMethods.length === 0 ||
+          selectedMethods.includes(getEntryMethod(entry));
+
+        if (!methodMatches) {
+          return false;
+        }
+
+        if (!query) {
+          return true;
+        }
+
+        const haystack = [
+          entry.displayRequestUrl,
+          entry.requestBody,
+          entry.responseContent,
+          entry.code,
+          entry.codeSource,
+        ]
+          .filter(Boolean)
+          .join("\n")
+          .toLowerCase();
+
+        return haystack.includes(query);
+      })
+      .reverse();
   };
 
-  getFilteredEntries = () => {
-    const query = this.state.searchText.trim().toLowerCase();
-    const selectedMethods = this.state.selectedMethods;
-    const entries = this.state.session.stack || [];
+  resolveNextSelectedEntryKey = ({
+    previousVisibleEntries = [],
+    nextVisibleEntries = [],
+    previousSelectedEntryKey = null,
+  }) => {
+    if (nextVisibleEntries.length === 0) {
+      return null;
+    }
 
-    return entries.filter((entry) => {
-      const methodMatches =
-        selectedMethods.length === 0 ||
-        selectedMethods.includes(getEntryMethod(entry));
+    const newestNextEntryKey = nextVisibleEntries[0].entryKey;
+    if (!previousSelectedEntryKey) {
+      return newestNextEntryKey;
+    }
 
-      if (!methodMatches) {
-        return false;
-      }
+    const previousNewestEntryKey = previousVisibleEntries[0]?.entryKey || null;
+    if (
+      previousSelectedEntryKey === previousNewestEntryKey &&
+      newestNextEntryKey !== previousSelectedEntryKey
+    ) {
+      return newestNextEntryKey;
+    }
 
-      if (!query) {
-        return true;
-      }
+    const selectedStillExists = nextVisibleEntries.some(
+      ({ entryKey }) => entryKey === previousSelectedEntryKey
+    );
 
-      const haystack = [
-        entry.displayRequestUrl,
-        entry.requestBody,
-        entry.responseContent,
-        entry.code,
-        entry.codeSource,
-      ]
-        .filter(Boolean)
-        .join("\n")
-        .toLowerCase();
-
-      return haystack.includes(query);
-    });
+    return selectedStillExists ? previousSelectedEntryKey : newestNextEntryKey;
   };
 
   handleSearchChange = (_, newValue) => {
-    this.setState({
-      searchText: newValue || "",
-      selectedIndex: 0,
+    this.setState((previousState) => {
+      const nextSearchText = newValue || "";
+      const previousVisibleEntries = this.getVisibleEntries(
+        previousState.session,
+        previousState.searchText,
+        previousState.selectedMethods
+      );
+      const nextVisibleEntries = this.getVisibleEntries(
+        previousState.session,
+        nextSearchText,
+        previousState.selectedMethods
+      );
+
+      return {
+        searchText: nextSearchText,
+        selectedEntryKey: this.resolveNextSelectedEntryKey({
+          previousVisibleEntries,
+          nextVisibleEntries,
+          previousSelectedEntryKey: previousState.selectedEntryKey,
+        }),
+      };
     });
   };
 
@@ -184,13 +260,54 @@ class Dashboard extends React.Component {
 
       return {
         selectedMethods: nextMethods,
-        selectedIndex: 0,
+        selectedEntryKey: this.resolveNextSelectedEntryKey({
+          previousVisibleEntries: this.getVisibleEntries(
+            previousState.session,
+            previousState.searchText,
+            previousState.selectedMethods
+          ),
+          nextVisibleEntries: this.getVisibleEntries(
+            previousState.session,
+            previousState.searchText,
+            nextMethods
+          ),
+          previousSelectedEntryKey: previousState.selectedEntryKey,
+        }),
       };
     });
   };
 
-  selectEntry = (selectedIndex) => {
-    this.setState({ selectedIndex });
+  selectEntry = (selectedEntryKey) => {
+    this.setState({ selectedEntryKey });
+  };
+
+  toggleCapturePaused = async () => {
+    const nextCapturePaused = !this.state.session.modes.capturePaused;
+    const nextDiagnosticLogs = this.state.session.modes.diagnosticMode
+      ? [
+          ...this.state.session.diagnosticLogs,
+          buildDiagnosticEntry({
+            source: "dashboard",
+            event: nextCapturePaused ? "capture_paused" : "capture_resumed",
+            level: "info",
+            details: {
+              snippetLanguage: this.state.session.modes.snippetLanguage,
+              ultraXRayMode: this.state.session.modes.ultraXRayMode,
+            },
+          }),
+        ].slice(-MAX_DIAGNOSTIC_LOG_ENTRIES)
+      : this.state.session.diagnosticLogs;
+
+    const nextSession = buildSessionSnapshot({
+      stack: this.state.session.stack,
+      diagnosticLogs: nextDiagnosticLogs,
+      modes: {
+        ...this.state.session.modes,
+        capturePaused: nextCapturePaused,
+      },
+      sourceContext: "dashboard",
+    });
+    await saveGraphXRaySession(nextSession);
   };
 
   clearSession = async () => {
@@ -262,16 +379,16 @@ class Dashboard extends React.Component {
 
     return (
       <div className="DashboardList">
-        {entries.map((entry, index) => {
+        {entries.map(({ entry, entryKey }) => {
           const method = getEntryMethod(entry);
-          const isActive = index === this.state.selectedIndex;
+          const isActive = entryKey === this.state.selectedEntryKey;
 
           return (
             <button
               type="button"
-              key={`${entry.displayRequestUrl}-${index}`}
+              key={entryKey}
               className={`DashboardListItem${isActive ? " Active" : ""}`}
-              onClick={() => this.selectEntry(index)}
+              onClick={() => this.selectEntry(entryKey)}
             >
               <div className="DashboardListMethod">{method}</div>
               <div className="DashboardListUrl">{entry.displayRequestUrl}</div>
@@ -340,17 +457,24 @@ class Dashboard extends React.Component {
 
   render() {
     const { isLoading, session } = this.state;
-    const filteredEntries = this.getFilteredEntries();
-    const selectedEntry = filteredEntries[this.state.selectedIndex] || null;
+    const visibleEntries = this.getVisibleEntries();
+    const selectedEntry =
+      visibleEntries.find(
+        ({ entryKey }) => entryKey === this.state.selectedEntryKey
+      )?.entry ||
+      visibleEntries[0]?.entry ||
+      null;
     const hasEntries = session.stack.length > 0;
 
     return (
       <div className="DashboardPage" style={{ fontSize: FontSizes.size12 }}>
         <AppHeader />
         <DevToolsCommandBar
+          capturePaused={session.modes.capturePaused}
           clearSession={this.clearSession}
           saveScript={this.saveScript}
           saveLogs={this.saveLogs}
+          toggleCapturePaused={this.toggleCapturePaused}
         />
         <div className="DashboardBody">
           <div className="DashboardHero">
@@ -374,6 +498,9 @@ class Dashboard extends React.Component {
                   </span>
                   <span className="DashboardMetaChip">
                     Diagnostic: {session.modes.diagnosticMode ? "On" : "Off"}
+                  </span>
+                  <span className="DashboardMetaChip">
+                    Capture: {session.modes.capturePaused ? "Paused" : "Running"}
                   </span>
                   <span className="DashboardMetaChip">
                     Updated: {formatTimestamp(session.updatedAt)}
@@ -456,7 +583,7 @@ class Dashboard extends React.Component {
                           color: "#475569",
                         }}
                       >
-                        {filteredEntries.length} visible of {session.stack.length}
+                        {visibleEntries.length} visible of {session.stack.length}
                       </p>
                     </div>
                     <DefaultButton
@@ -465,7 +592,7 @@ class Dashboard extends React.Component {
                       onClick={this.openGuide}
                     />
                   </div>
-                  {this.renderList(filteredEntries)}
+                  {this.renderList(visibleEntries)}
                 </div>
               </div>
 
