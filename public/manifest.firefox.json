@@ -34,6 +34,8 @@
     "https://security.microsoft.com/",
     "https://graph.windows.net/",
     "https://api.azrbac.mspim.azure.com/",
+    "https://admin.powerplatform.microsoft.com/",
+    "https://admin.cloud.microsoft/",
     "https://devxapi-func-prod-eastus.azurewebsites.net/"
   ],
   "icons": {

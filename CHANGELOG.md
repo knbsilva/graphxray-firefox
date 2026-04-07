@@ -86,3 +86,10 @@
 - Added per-entry export actions for generated snippets and captured responses.
 - Added visual labels for Ultra X-Ray internal API calls in the session UI where the request domain can be identified as an internal endpoint.
 - Tightened the README so it reflects the actual Firefox workflow, standalone dashboard behavior, and current snippet-generation limitations more accurately.
+
+### Upstream PowerShell And Domain Imports
+
+- Replaced the local PowerShell fallback style with `Invoke-MgGraphRequest` so fallback snippets are closer to the Microsoft Graph PowerShell SDK model used upstream.
+- Added structured PowerShell body generation that converts JSON request payloads into readable `$params` blocks and keeps a raw-body fallback when parsing is not possible.
+- Propagated `ConsistencyLevel: eventual` into both DevX requests and local PowerShell fallback snippets for matching `GET` requests and batch subrequests.
+- Added the upstream `admin.powerplatform.microsoft.com` and `admin.cloud.microsoft` Ultra X-Ray domains to the centralized domain list and Firefox host permissions.

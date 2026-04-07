@@ -10,7 +10,7 @@ Use it to inspect requests and responses, generate snippets, export evidence, an
 
 - **API Call Inspection**: Capture and inspect all Microsoft Graph API requests (GET, POST, PATCH, DELETE) and their full responses directly within your browser's developer tools.
 
-- **Snippet Generation**: Convert recorded API calls into code snippets when the underlying Microsoft Graph snippet service supports the endpoint.
+- **Snippet Generation**: Convert recorded API calls into code snippets when the underlying Microsoft Graph snippet service supports the endpoint, with a local PowerShell fallback when it does not.
 
 - **Standalone Dashboard**: Review the active captured session in a separate extension page instead of staying inside the Web Developer Tools panel.
 
@@ -100,7 +100,7 @@ Notes:
 
 - Graph X-Ray currently depends on Firefox DevTools network capture. Keep Developer Tools open while capturing.
 - Snippet generation quality depends on endpoint coverage in the Microsoft Graph snippet service.
-- For PowerShell, this fork also includes a local fallback when DevX does not return a snippet.
+- For PowerShell, this fork includes a local `Invoke-MgGraphRequest` fallback when DevX does not return a snippet.
 
 ### Step by step guide
 
@@ -172,6 +172,12 @@ The development build refreshes as you edit files, and build/lint errors are sho
 Builds the Firefox production output into `build/firefox`.
 
 This is the folder you should use for temporary loading in Firefox when you want to validate a production-style build locally.
+
+## Snippet Behavior
+
+- C#, JavaScript, Java, Go, Python, and Objective-C depend on the Microsoft Graph snippet service when the endpoint is supported.
+- PowerShell first attempts the same snippet service, but falls back locally to an `Invoke-MgGraphRequest` snippet when DevX fails or does not cover the endpoint.
+- PowerShell fallback snippets preserve the original captured URL, structure JSON bodies into a readable `$params` block when possible, and carry `ConsistencyLevel: eventual` for matching `GET` requests.
 
 ## Adding non-Graph API calls to Ultra X-Ray
 

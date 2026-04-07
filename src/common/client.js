@@ -121,43 +121,151 @@ const buildFallbackRequestUrl = (url) =>
 const escapePowerShellSingleQuotedString = (value = "") =>
   value.replace(/'/g, "''");
 
-const buildPowerShellFallbackSnippet = (method, url, body) => {
-  const requestUrl = buildFallbackRequestUrl(url);
-  const bodyText = formatRequestBodyForFallback(body);
-  const upperMethod = method.toUpperCase();
-  const lines = [
-    "# Generated local fallback because DevX snippet generation failed.",
-    '$accessToken = "<ACCESS_TOKEN>"',
-    '$headers = @{',
-    '  Authorization = "Bearer $accessToken"',
-    '  "Content-Type" = "application/json"',
-    "}",
-    `$uri = '${escapePowerShellSingleQuotedString(requestUrl)}'`,
-  ];
+const escapePowerShellDoubleQuotedString = (value = "") =>
+  value.replace(/[`$"]/g, "`$&");
 
-  if (bodyText) {
-    lines.push("$body = @'");
-    lines.push(bodyText);
-    lines.push("'@");
-    lines.push(
-      `$response = Invoke-RestMethod -Uri $uri -Method "${upperMethod}" -Headers $headers -Body $body`
+const formatPowerShellValue = (value, indent = "") => {
+  if (value === null) {
+    return "$null";
+  }
+
+  if (typeof value === "boolean") {
+    return value ? "$true" : "$false";
+  }
+
+  if (typeof value === "number") {
+    return String(value);
+  }
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return "@()";
+    }
+
+    const items = value.map(
+      (entry) =>
+        `${indent}  ${formatPowerShellValue(entry, `${indent}  `)}`
     );
-  } else {
-    lines.push(
-      `$response = Invoke-RestMethod -Uri $uri -Method "${upperMethod}" -Headers $headers`
+    return `@(\n${items.join("\n")}\n${indent})`;
+  }
+
+  if (typeof value === "object") {
+    const entries = Object.entries(value).map(
+      ([key, entryValue]) =>
+        `${indent}  "${escapePowerShellDoubleQuotedString(
+          key
+        )}" = ${formatPowerShellValue(entryValue, `${indent}  `)}`
+    );
+    return `@{\n${entries.join("\n")}\n${indent}}`;
+  }
+
+  return `"${escapePowerShellDoubleQuotedString(String(value))}"`;
+};
+
+const buildPowerShellBodyBlock = (body) => {
+  if (!body) {
+    return null;
+  }
+
+  try {
+    const parsedBody = JSON.parse(body);
+    const formattedBody = formatPowerShellValue(parsedBody);
+    const [firstLine, ...restLines] = formattedBody.split("\n");
+    const lines = [`$params = ${firstLine}`, ...restLines];
+    return {
+      lines,
+      commandSuffix:
+        ' -Body ($params | ConvertTo-Json -Depth 10) -ContentType "application/json"',
+    };
+  } catch (error) {
+    const lines = ["$body = @'"];
+    lines.push(formatRequestBodyForFallback(body));
+    lines.push("'@");
+    return {
+      lines,
+      commandSuffix: ' -Body $body -ContentType "application/json"',
+    };
+  }
+};
+
+const hasConsistencyLevelHeader = (headers) => {
+  if (!headers) {
+    return false;
+  }
+
+  if (Array.isArray(headers)) {
+    return headers.some(
+      (header) =>
+        header &&
+        typeof header.name === "string" &&
+        header.name.toLowerCase() === "consistencylevel" &&
+        String(header.value ?? "").toLowerCase() === "eventual"
     );
   }
 
+  if (typeof headers === "object") {
+    return Object.entries(headers).some(
+      ([headerName, value]) =>
+        headerName.toLowerCase() === "consistencylevel" &&
+        String(value ?? "").toLowerCase() === "eventual"
+    );
+  }
+
+  return false;
+};
+
+const buildPowerShellFallbackSnippet = (method, url, body, options = {}) => {
+  const requestUrl = buildFallbackRequestUrl(url);
+  const upperMethod = method.toUpperCase();
+  const bodyBlock = buildPowerShellBodyBlock(body);
+  const lines = [
+    "# Generated local fallback because DevX snippet generation failed.",
+    "# Authenticate first with Microsoft Graph PowerShell SDK before running this snippet.",
+    '# Example: Connect-MgGraph -Scopes "<SCOPES>"',
+    `$uri = '${escapePowerShellSingleQuotedString(requestUrl)}'`,
+  ];
+
+  if (options.includeConsistencyLevelHeader) {
+    lines.push('$headers = @{ "ConsistencyLevel" = "eventual" }');
+  }
+
+  if (bodyBlock) {
+    lines.push(...bodyBlock.lines);
+  }
+
+  let command = `Invoke-MgGraphRequest -Method ${upperMethod} -Uri $uri`;
+  if (options.includeConsistencyLevelHeader) {
+    command += " -Headers $headers";
+  }
+  if (bodyBlock) {
+    command += bodyBlock.commandSuffix;
+  }
+
+  lines.push(command);
   lines.push("$response");
   return lines.join("\n");
 };
 
-const buildFallbackSnippet = (snippetLanguage, method, url, body) => {
+const buildFallbackSnippet = (snippetLanguage, method, url, body, options = {}) => {
   if (snippetLanguage === "powershell") {
-    return buildPowerShellFallbackSnippet(method, url, body);
+    return buildPowerShellFallbackSnippet(method, url, body, options);
   }
 
   return null;
+};
+
+const resolveSnippetInvocationArgs = (optionsOrLogger, maybeLogger) => {
+  if (typeof optionsOrLogger === "function") {
+    return {
+      options: {},
+      diagnosticLogger: optionsOrLogger,
+    };
+  }
+
+  return {
+    options: optionsOrLogger ?? {},
+    diagnosticLogger: maybeLogger,
+  };
 };
 
 const getPowershellCmd = async function (
@@ -165,8 +273,13 @@ const getPowershellCmd = async function (
   method,
   url,
   body,
-  diagnosticLogger = null
+  optionsOrLogger = {},
+  maybeLogger = null
 ) {
+  const { options, diagnosticLogger } = resolveSnippetInvocationArgs(
+    optionsOrLogger,
+    maybeLogger
+  );
   console.log("Get code snippet from DevX:", url, method);
   
   // Check if the URL is from an Ultra X-Ray domain - if so, don't call devx
@@ -182,7 +295,11 @@ const getPowershellCmd = async function (
   
   const bodyText = body ?? ""; //Cast undefined and null to string
   const { host, path, normalizedUrl } = normalizeGraphRequestUrlForDevX(url);
-  const payload = `${method} ${path} HTTP/1.1\r\nHost: ${host}\r\nContent-Type: application/json\r\n\r\n${bodyText}`;
+  let payloadHeaders = `Host: ${host}\r\nContent-Type: application/json`;
+  if (method.toUpperCase() === "GET" && options.includeConsistencyLevelHeader) {
+    payloadHeaders += "\r\nConsistencyLevel: eventual";
+  }
+  const payload = `${method} ${path} HTTP/1.1\r\n${payloadHeaders}\r\n\r\n${bodyText}`;
   console.log("Payload:", payload);
 
   const snippetParam = "?lang=%snippetLanguage%".replace(
@@ -246,7 +363,8 @@ const getPowershellCmd = async function (
         snippetLanguage,
         method,
         url,
-        bodyText
+        bodyText,
+        options
       );
       emitDiagnosticLog(
         diagnosticLogger,
@@ -289,7 +407,8 @@ const getPowershellCmd = async function (
       snippetLanguage,
       method,
       url,
-      bodyText
+      bodyText,
+      options
     );
     emitDiagnosticLog(
       diagnosticLogger,
@@ -657,6 +776,9 @@ const getBatchCodeSnippets = async function (
       
       // Get the body for this individual request
       const requestBodyText = request.body ? JSON.stringify(request.body) : "";
+      const includeConsistencyLevelHeader = hasConsistencyLevelHeader(
+        request.headers
+      );
       
       // Generate code snippet for this individual request
       const snippetResult = await getPowershellCmd(
@@ -664,6 +786,7 @@ const getBatchCodeSnippets = async function (
         request.method,
         fullUrl,
         requestBodyText,
+        { includeConsistencyLevelHeader },
         diagnosticLogger
       );
       
@@ -728,6 +851,9 @@ const getCodeView = async function (
   const responseContent = harEntry
     ? await getResponseContent(harEntry, diagnosticLogger)
     : "";
+  const includeConsistencyLevelHeader = hasConsistencyLevelHeader(
+    request.headers
+  );
   
   let code = null;
   let codeError = null;
@@ -752,6 +878,7 @@ const getCodeView = async function (
       request.method,
       version + request.url,
       requestBody,
+      { includeConsistencyLevelHeader },
       diagnosticLogger
     );
     code = snippetResult?.code ?? null;
@@ -764,6 +891,7 @@ const getCodeView = async function (
       request.method,
       version + request.url,
       requestBody,
+      { includeConsistencyLevelHeader },
       diagnosticLogger
     );
     code = snippetResult?.code ?? null;

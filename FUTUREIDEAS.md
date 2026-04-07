@@ -28,19 +28,19 @@ The Firefox fork already generates an unsigned `.xpi` at `build/packages/graphxr
 - Temporary local loading via `about:debugging#/runtime/this-firefox` remains the development path until signing is completed.
 - If this fork is intended for broader distribution, add a dedicated privacy policy before AMO submission.
 
-## Local SDK-Aware PowerShell Generator
+## Full SDK-Aware PowerShell Generator
 
-The current local PowerShell fallback is REST-based. It uses the captured HTTP interaction and emits a generic `Invoke-RestMethod` snippet.
+The current local PowerShell fallback already emits `Invoke-MgGraphRequest` snippets with structured request bodies when DevX fails. That restores usability, but it is still transport-oriented rather than truly cmdlet-aware.
 
 ### Why this may be needed
 
 - The DevX backend currently fails for PowerShell snippet generation.
-- A local REST fallback keeps the extension usable, but it does not produce Graph PowerShell SDK-style snippets such as `Get-Mg*`, `Update-Mg*`, or `Invoke-MgGraphRequest`.
+- The current local fallback keeps the extension usable and now produces SDK-adjacent `Invoke-MgGraphRequest` snippets, but it still does not emit richer cmdlets such as `Get-Mg*`, `Update-Mg*`, or `New-Mg*`.
 - If long-term PowerShell support should match the "knowledge level" of Graph Explorer snippets, a richer local generator is the next logical step.
 
 ### Possible implementation direction
 
-1. Keep the current REST fallback as the safe baseline.
+1. Keep the current `Invoke-MgGraphRequest` fallback as the safe baseline.
 2. Add a separate local PowerShell generator layer that understands:
    - Microsoft Graph metadata/OpenAPI
    - Graph PowerShell SDK naming conventions
@@ -54,10 +54,10 @@ The current local PowerShell fallback is REST-based. It uses the captured HTTP i
 4. Generate one of these outputs depending on coverage:
    - preferred: Graph PowerShell SDK cmdlets
    - fallback: `Invoke-MgGraphRequest`
-   - final fallback: raw `Invoke-RestMethod`
+   - final fallback: raw request-oriented output only if a request cannot be mapped safely
 5. Add diagnostics that identify which local generation strategy was used.
 
 ### Tradeoff
 
-- This would improve PowerShell quality and reduce dependency on DevX.
+- This would improve PowerShell quality further and reduce dependency on DevX even more.
 - It is substantially more complex than the current fallback and should be treated as a dedicated feature, not a small fix.

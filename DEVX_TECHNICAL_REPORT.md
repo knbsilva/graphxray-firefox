@@ -4,6 +4,8 @@
 
 This document records the technical findings from the Firefox fork investigation around DevX snippet generation failures observed on March 18, 2026.
 
+Note: the local mitigation described here has since been improved. The fork now emits PowerShell fallback snippets in an `Invoke-MgGraphRequest` style with structured request-body rendering where possible.
+
 ## Executive Summary
 
 The Graph X-Ray Firefox fork is functioning correctly in the following areas:
@@ -189,7 +191,7 @@ Conclusion:
 ## Recommended Upstream Actions
 
 1. Treat `microsoftgraph/microsoft-graph-devx-api` as the likely historical backend, but do not assume a public GitHub issue can be filed there today.
-2. Use the prepared issue draft as a report body for whichever Microsoft-owned channel is currently available.
+2. Keep a concise report body ready for whichever Microsoft-owned channel is currently available.
 3. Keep the minimal repro centered on `GET /v1.0/me`.
 4. Mention that other languages succeed while PowerShell fails.
 5. Treat route coverage gaps as a separate problem from the PowerShell generator regression.
@@ -205,5 +207,12 @@ The Firefox fork now uses a local PowerShell fallback when DevX fails, which res
 - on-screen snippet rendering
 - copy script
 - save script
+
+Current behavior:
+
+- fallback snippets use `Invoke-MgGraphRequest`
+- original captured URLs are preserved
+- JSON bodies are rendered as readable `$params` blocks when possible
+- `ConsistencyLevel: eventual` is carried into fallback snippets for matching `GET` requests
 
 This mitigation is appropriate to keep the extension usable until the upstream DevX issue is resolved.
