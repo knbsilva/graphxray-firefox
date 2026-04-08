@@ -83,7 +83,19 @@ class App extends React.Component {
       return;
     }
     hostWebview.addEventListener("message", (event) => {
-      debugLog("Got message from host", event.data);
+      try {
+        const message =
+          typeof event.data === "string" ? JSON.parse(event.data) : event.data;
+        if (!message || typeof message !== "object") {
+          return;
+        }
+        debugLog("Got message from host", {
+          eventName: message.eventName,
+          hasUrl: typeof message.url === "string",
+        });
+      } catch (error) {
+        warnLog("Rejected malformed host message", error);
+      }
     });
   }
 

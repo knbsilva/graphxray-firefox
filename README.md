@@ -103,6 +103,7 @@ Notes:
 - External snippet generation is opt-in. Local only mode prevents request payloads from being sent to the Microsoft Graph DevX snippet service.
 - Snippet generation quality depends on endpoint coverage in the Microsoft Graph snippet service when external snippets are enabled.
 - For PowerShell, this fork renders a local `Invoke-MgGraphRequest` snippet immediately and only upgrades it if DevX later returns a valid snippet.
+- Export sanitization defaults to `redacted`. You can switch to `raw` or `summary` from the Graph X-Ray options page.
 - Session entries are shown newest first in the UI, while `Save script` keeps the captured session export in chronological order.
 - `Pause capture` stops new entries from being appended without clearing the current session.
 - Per-entry `Save request` is only shown when the request actually has a body.
@@ -191,6 +192,10 @@ This is the folder you should use for temporary loading in Firefox when you want
 - Graph X-Ray can capture sensitive Microsoft 365 administrative request bodies, response bodies, and generated snippets.
 - A first-use consent acknowledgement is required before new captures are appended.
 - Diagnostic exports can contain redacted troubleshooting data, but should still be treated as sensitive.
+- Export sanitization can be set to:
+  - `raw` to preserve captured content as-is
+  - `redacted` to mask sensitive values
+  - `summary` to save metadata-only JSON
 - In `Local only` mode, Graph X-Ray does not submit captured request payloads to the external DevX snippet service.
 - If you enable external snippets, request payload content for supported languages can be sent to the DevX endpoint for snippet generation.
 - Captured exports such as `GraphXRay*.json`, `GraphXRay*.ps1`, `GraphXRay*.py`, and `.har` files should never be committed to the repository.
@@ -199,15 +204,16 @@ This is the folder you should use for temporary loading in Firefox when you want
 ## Session Controls
 
 - `Save script` exports the deduplicated generated snippets for the current session.
-- `Save logs` exports the diagnostic session when Diagnostic Mode is enabled and asks for confirmation because the file can contain sensitive administrative data.
+- `Save script` follows the current export sanitization mode. `summary` exports script metadata instead of full code.
+- `Save logs` exports the diagnostic session when Diagnostic Mode is enabled, follows the current export sanitization mode, and asks for confirmation because the file can contain sensitive administrative data.
 - `Pause capture` / `Resume capture` controls whether new requests are appended while keeping the current session available for review and export.
 - `Clear local cache` clears the current session plus local request-body correlation cache and legacy local capture state.
 - `Clear local cache` also resets the first-use consent acknowledgement so capture stays blocked until you acknowledge it again.
 - Persisted session state is automatically purged after roughly 60 minutes of inactivity.
 - Individual entries can export:
-  - `Request` when a request body exists, with a confirmation prompt
-  - `Response` when response content exists, with a confirmation prompt
-  - `Snippet` when generated code exists
+  - `Request` when a request body exists, with a confirmation prompt and the selected export sanitization mode
+  - `Response` when response content exists, with a confirmation prompt and the selected export sanitization mode
+  - `Snippet` when generated code exists, with the selected export sanitization mode
 
 ## Adding non-Graph API calls to Ultra X-Ray
 

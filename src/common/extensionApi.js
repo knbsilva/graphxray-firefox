@@ -211,19 +211,44 @@ const getDevtoolsApi = () => extensionApi?.devtools ?? null;
 const isFirefoxBrowser = () =>
   typeof navigator !== "undefined" && /firefox/i.test(navigator.userAgent);
 
+const isTrustedRuntimeSender = (sender) => {
+  const runtimeId = extensionApi?.runtime?.id;
+
+  if (!runtimeId || !sender) {
+    return true;
+  }
+
+  if (!sender.id) {
+    return true;
+  }
+
+  return sender.id === runtimeId;
+};
+
 const addRuntimeMessageListener = (listener) => {
   if (!extensionApi?.runtime?.onMessage?.addListener) {
     return;
   }
 
   if (browserApi) {
-    extensionApi.runtime.onMessage.addListener((message, sender) =>
-      listener(message, sender)
-    );
+    extensionApi.runtime.onMessage.addListener((message, sender) => {
+      if (!isTrustedRuntimeSender(sender)) {
+        warnLog("Rejected untrusted runtime sender", sender);
+        return null;
+      }
+
+      return listener(message, sender);
+    });
     return;
   }
 
   extensionApi.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (!isTrustedRuntimeSender(sender)) {
+      warnLog("Rejected untrusted runtime sender", sender);
+      sendResponse(null);
+      return false;
+    }
+
     Promise.resolve(listener(message, sender))
       .then((response) => {
         sendResponse(response);
@@ -266,6 +291,7 @@ export {
   getHostWebview,
   getDevtoolsApi,
   isFirefoxBrowser,
+  isTrustedRuntimeSender,
   addRuntimeMessageListener,
   addStorageChangeListener,
 };

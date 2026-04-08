@@ -8,9 +8,19 @@ import { IconButton } from "@fluentui/react/lib/Button";
 import { isUltraXRayDomain } from "../common/domains.js";
 import { downloadContentAsFile } from "../common/session.js";
 import { getSnippetLanguageOption } from "../common/snippetLanguages.js";
-import { warnLog } from "../common/security.js";
+import {
+  buildExportArtifact,
+  normalizeExportSanitizationMode,
+  redactSensitiveText,
+  warnLog,
+} from "../common/security.js";
 
-export const CodeView = ({ request, lightUrl, snippetLanguage }) => {
+export const CodeView = ({
+  request,
+  lightUrl,
+  snippetLanguage,
+  exportSanitizationMode = "redacted",
+}) => {
   const [isRequestBodyExpanded, setIsRequestBodyExpanded] = useState(false);
   const [isSnippetExpanded, setIsSnippetExpanded] = useState(false);
   const [isBatchSnippetsExpanded, setIsBatchSnippetsExpanded] = useState(false);
@@ -18,6 +28,9 @@ export const CodeView = ({ request, lightUrl, snippetLanguage }) => {
   const requestUrl = (request?.displayRequestUrl || "").split(" ").slice(1).join(" ");
   const requestMethod = (request?.displayRequestUrl || "").split(" ")[0] || "GRAPH";
   const isUltraXRayRequest = isUltraXRayDomain(requestUrl);
+  const normalizedExportMode = normalizeExportSanitizationMode(
+    exportSanitizationMode
+  );
 
   let urlStyle = atomOneDark;
   if (lightUrl) {
@@ -191,6 +204,44 @@ export const CodeView = ({ request, lightUrl, snippetLanguage }) => {
     }
   };
 
+  const getRequestExportSummary = (content) => ({
+    kind: "request-summary",
+    method: requestMethod,
+    url: requestUrl,
+    hasBody: Boolean(content && content.trim()),
+    bodyLength: content ? content.length : 0,
+    codeSource: request.codeSource || "none",
+    isUltraXRayRequest,
+  });
+
+  const getResponseExportSummary = (content) => ({
+    kind: "response-summary",
+    method: requestMethod,
+    url: requestUrl,
+    hasResponse: Boolean(content && content.trim()),
+    responseLength: content ? content.length : 0,
+    codeSource: request.codeSource || "none",
+    isUltraXRayRequest,
+  });
+
+  const getSnippetExportSummary = (
+    content,
+    targetUrl = requestUrl,
+    targetMethod = requestMethod,
+    extraParts = []
+  ) => ({
+    kind: "snippet-summary",
+    method: targetMethod,
+    url: targetUrl,
+    snippetLanguage,
+    codeSource: request.codeSource || "none",
+    codeLength: content ? content.length : 0,
+    batchSnippetCount: request.batchCodeSnippets
+      ? request.batchCodeSnippets.length
+      : 0,
+    extraParts,
+  });
+
   const saveRequestToFile = async (content, suffix = "request") => {
     if (!content || !content.trim()) {
       return;
@@ -206,10 +257,19 @@ export const CodeView = ({ request, lightUrl, snippetLanguage }) => {
     }
 
     const descriptor = getContentFileDescriptor(content);
+    const exportArtifact = buildExportArtifact({
+      rawContent: content,
+      mode: normalizedExportMode,
+      summary: getRequestExportSummary(content),
+      rawExtension: descriptor.extension,
+      rawMimeType: descriptor.mimeType,
+    });
     await downloadContentAsFile(
-      content,
-      `GraphXRay-${suffix}-${getEntryFileNameBase()}.${descriptor.extension}`,
-      descriptor.mimeType
+      exportArtifact.content,
+      `GraphXRay-${suffix}-${getEntryFileNameBase()}.${
+        exportArtifact.extension || descriptor.extension
+      }`,
+      exportArtifact.mimeType
     );
   };
 
@@ -228,10 +288,19 @@ export const CodeView = ({ request, lightUrl, snippetLanguage }) => {
     }
 
     const descriptor = getContentFileDescriptor(content);
+    const exportArtifact = buildExportArtifact({
+      rawContent: content,
+      mode: normalizedExportMode,
+      summary: getResponseExportSummary(content),
+      rawExtension: descriptor.extension,
+      rawMimeType: descriptor.mimeType,
+    });
     await downloadContentAsFile(
-      content,
-      `GraphXRay-${suffix}-${getEntryFileNameBase()}.${descriptor.extension}`,
-      descriptor.mimeType
+      exportArtifact.content,
+      `GraphXRay-${suffix}-${getEntryFileNameBase()}.${
+        exportArtifact.extension || descriptor.extension
+      }`,
+      exportArtifact.mimeType
     );
   };
 
@@ -247,13 +316,34 @@ export const CodeView = ({ request, lightUrl, snippetLanguage }) => {
     }
 
     const languageOption = getSnippetLanguageOption(snippetLanguage);
+    const exportArtifact =
+      normalizedExportMode === "summary"
+        ? buildExportArtifact({
+            rawContent: content,
+            mode: normalizedExportMode,
+            summary: getSnippetExportSummary(
+              content,
+              targetUrl,
+              targetMethod,
+              extraParts
+            ),
+          })
+        : {
+            content:
+              normalizedExportMode === "redacted"
+                ? redactSensitiveText(content)
+                : content,
+            extension: languageOption.fileExt,
+            mimeType: "text/plain",
+          };
     await downloadContentAsFile(
-      content,
+      exportArtifact.content,
       `GraphXRay-${suffix}-${getEntryFileNameBase(
         targetUrl,
         targetMethod,
         extraParts
-      )}.${languageOption.fileExt}`
+      )}.${exportArtifact.extension || languageOption.fileExt}`,
+      exportArtifact.mimeType
     );
   };
 

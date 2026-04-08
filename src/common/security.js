@@ -1,4 +1,6 @@
 const DEBUG_LOGGING_STORAGE_KEY = "graphxrayDebugLogging";
+const EXPORT_SANITIZATION_MODES = ["raw", "redacted", "summary"];
+const DEFAULT_EXPORT_SANITIZATION_MODE = "redacted";
 
 const REDACTION_PATTERNS = [
   {
@@ -36,6 +38,73 @@ const redactSensitiveText = (value = "") => {
     sanitized = sanitized.replace(pattern, replacement);
   });
   return sanitized;
+};
+
+const normalizeExportSanitizationMode = (value) =>
+  EXPORT_SANITIZATION_MODES.includes(value)
+    ? value
+    : DEFAULT_EXPORT_SANITIZATION_MODE;
+
+const tryParseJsonContent = (content) => {
+  if (typeof content !== "string") {
+    return {
+      ok: false,
+    };
+  }
+
+  try {
+    return {
+      ok: true,
+      value: JSON.parse(content.trim()),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+    };
+  }
+};
+
+const buildExportArtifact = ({
+  rawContent = "",
+  mode = DEFAULT_EXPORT_SANITIZATION_MODE,
+  summary = {},
+  rawExtension = "txt",
+  rawMimeType = "text/plain",
+}) => {
+  const normalizedMode = normalizeExportSanitizationMode(mode);
+
+  if (normalizedMode === "summary") {
+    return {
+      content: JSON.stringify(
+        redactSensitiveValue({
+          generatedAt: new Date().toISOString(),
+          exportMode: normalizedMode,
+          ...summary,
+        }),
+        null,
+        2
+      ),
+      extension: "json",
+      mimeType: "application/json",
+    };
+  }
+
+  if (normalizedMode === "redacted") {
+    const parsed = tryParseJsonContent(rawContent);
+    return {
+      content: parsed.ok
+        ? JSON.stringify(redactSensitiveValue(parsed.value), null, 2)
+        : redactSensitiveText(rawContent),
+      extension: parsed.ok ? "json" : rawExtension,
+      mimeType: parsed.ok ? "application/json" : rawMimeType,
+    };
+  }
+
+  return {
+    content: rawContent,
+    extension: rawExtension,
+    mimeType: rawMimeType,
+  };
 };
 
 const redactSensitiveValue = (value, depth = 0) => {
@@ -105,7 +174,11 @@ const errorLog = (...args) => {
 };
 
 export {
+  DEFAULT_EXPORT_SANITIZATION_MODE,
   DEBUG_LOGGING_STORAGE_KEY,
+  EXPORT_SANITIZATION_MODES,
+  buildExportArtifact,
+  normalizeExportSanitizationMode,
   redactSensitiveText,
   redactSensitiveValue,
   debugLog,

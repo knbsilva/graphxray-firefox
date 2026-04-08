@@ -20,8 +20,10 @@ import {
 } from "../common/diagnostics.js";
 import {
   ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY,
+  EXPORT_SANITIZATION_MODE_STORAGE_KEY,
   SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY,
   clearGraphXRayLocalData,
+  getExportSanitizationMode,
   getGraphXRaySession,
   getSensitiveCaptureConsentAccepted,
   saveGraphXRaySession,
@@ -38,7 +40,11 @@ import {
   normalizeSessionState,
 } from "../common/session.js";
 import { getSnippetLanguageOption } from "../common/snippetLanguages.js";
-import { warnLog } from "../common/security.js";
+import {
+  buildExportArtifact,
+  redactSensitiveText,
+  warnLog,
+} from "../common/security.js";
 
 const theme = getTheme();
 const HTTP_METHOD_OPTIONS = ["GET", "POST", "PATCH", "PUT", "DELETE"].map(
@@ -97,6 +103,7 @@ class Dashboard extends React.Component {
     session.modes.allowExternalSnippets = await getAllowExternalSnippets();
     session.modes.captureConsentAccepted =
       await getSensitiveCaptureConsentAccepted();
+    session.modes.exportSanitizationMode = await getExportSanitizationMode();
     this.setState((previousState) => {
       const previousVisibleEntries = this.getVisibleEntries(previousState.session);
       const nextVisibleEntries = this.getVisibleEntries(
@@ -146,6 +153,17 @@ class Dashboard extends React.Component {
           if (
             Object.prototype.hasOwnProperty.call(
               changes,
+              EXPORT_SANITIZATION_MODE_STORAGE_KEY
+            )
+          ) {
+            session.modes.exportSanitizationMode =
+              changes[EXPORT_SANITIZATION_MODE_STORAGE_KEY]?.newValue ||
+              session.modes.exportSanitizationMode;
+          }
+
+          if (
+            Object.prototype.hasOwnProperty.call(
+              changes,
               SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY
             )
           ) {
@@ -162,6 +180,10 @@ class Dashboard extends React.Component {
             !Object.prototype.hasOwnProperty.call(
               changes,
               ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY
+            ) &&
+            !Object.prototype.hasOwnProperty.call(
+              changes,
+              EXPORT_SANITIZATION_MODE_STORAGE_KEY
             ) &&
             !Object.prototype.hasOwnProperty.call(
               changes,
@@ -417,9 +439,35 @@ class Dashboard extends React.Component {
 
     const language = this.state.session.modes.snippetLanguage;
     const languageOption = getSnippetLanguageOption(language);
+    const exportMode = this.state.session.modes.exportSanitizationMode;
+    const scriptArtifact =
+      exportMode === "summary"
+        ? buildExportArtifact({
+            rawContent: script,
+            mode: exportMode,
+            summary: {
+              kind: "script-summary",
+              language,
+              snippetCount: this.state.session.stack.filter(
+                (entry) => entry.code && entry.code.trim()
+              ).length,
+              batchSnippetCount: this.state.session.stack.reduce(
+                (total, entry) =>
+                  total + (entry.batchCodeSnippets?.length || 0),
+                0
+              ),
+            },
+          })
+        : {
+            content:
+              exportMode === "redacted" ? redactSensitiveText(script) : script,
+            extension: languageOption.fileExt,
+            mimeType: "text/plain",
+          };
     await downloadContentAsFile(
-      script,
-      `GraphXRaySession.${languageOption.fileExt}`
+      scriptArtifact.content,
+      `GraphXRaySession.${scriptArtifact.extension || languageOption.fileExt}`,
+      scriptArtifact.mimeType
     );
   };
 
@@ -437,22 +485,23 @@ class Dashboard extends React.Component {
       return;
     }
 
-    const logPayload = buildDiagnosticExportPayload(
+    const logArtifact = buildDiagnosticExportPayload(
       buildSessionSnapshot({
         stack: this.state.session.stack,
         diagnosticLogs: this.state.session.diagnosticLogs,
         modes: this.state.session.modes,
         sourceContext: "dashboard",
-      })
+      }),
+      this.state.session.modes.exportSanitizationMode
     );
     const fileName = `GraphXRayDiagnostics-${new Date()
       .toISOString()
-      .replace(/[:.]/g, "-")}.json`;
+      .replace(/[:.]/g, "-")}.${logArtifact.extension || "json"}`;
 
     await downloadContentAsFile(
-      JSON.stringify(logPayload, null, 2),
+      logArtifact.content,
       fileName,
-      "application/json"
+      logArtifact.mimeType
     );
   };
 
@@ -605,6 +654,9 @@ class Dashboard extends React.Component {
                     External snippets: {session.modes.allowExternalSnippets ? "On" : "Off"}
                   </span>
                   <span className="DashboardMetaChip">
+                    Export mode: {session.modes.exportSanitizationMode}
+                  </span>
+                  <span className="DashboardMetaChip">
                     Consent: {session.modes.captureConsentAccepted ? "Accepted" : "Required"}
                   </span>
                   <span className="DashboardMetaChip">
@@ -737,6 +789,9 @@ class Dashboard extends React.Component {
                   {selectedEntry ? (
                     <CodeView
                       request={selectedEntry}
+                      exportSanitizationMode={
+                        session.modes.exportSanitizationMode
+                      }
                       lightUrl={true}
                       snippetLanguage={session.modes.snippetLanguage}
                     />

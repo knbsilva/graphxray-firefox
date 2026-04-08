@@ -1,5 +1,9 @@
 import { downloadFile as downloadExtensionFile } from "./extensionApi.js";
-import { warnLog } from "./security.js";
+import {
+  buildExportArtifact,
+  normalizeExportSanitizationMode,
+  warnLog,
+} from "./security.js";
 
 const GRAPHXRAY_SESSION_STORAGE_KEY = "graphxraySession";
 const DEFAULT_SESSION_RETENTION_MS = 60 * 60 * 1000;
@@ -9,6 +13,7 @@ const DEFAULT_SESSION_MODES = {
   captureConsentAccepted: false,
   capturePaused: false,
   diagnosticMode: false,
+  exportSanitizationMode: "redacted",
   snippetLanguage: "powershell",
   ultraXRayMode: false,
 };
@@ -108,10 +113,13 @@ const getSaveScriptContentFromStack = (stack = []) => {
   return sections.join("\n\n");
 };
 
-const buildDiagnosticExportPayload = (session) => {
+const buildDiagnosticExportPayload = (
+  session,
+  exportSanitizationMode = DEFAULT_SESSION_MODES.exportSanitizationMode
+) => {
   const normalizedSession = normalizeSessionState(session);
-
-  return {
+  const normalizedMode = normalizeExportSanitizationMode(exportSanitizationMode);
+  const summaryPayload = {
     generatedAt: new Date().toISOString(),
     userAgent: navigator.userAgent,
     modes: normalizedSession.modes,
@@ -127,8 +135,22 @@ const buildDiagnosticExportPayload = (session) => {
         : 0,
       codeSource: request.codeSource || "none",
     })),
-    logs: normalizedSession.diagnosticLogs,
   };
+
+  return buildExportArtifact({
+    rawContent: JSON.stringify(
+      {
+        ...summaryPayload,
+        logs: normalizedSession.diagnosticLogs,
+      },
+      null,
+      2
+    ),
+    mode: normalizedMode,
+    summary: summaryPayload,
+    rawExtension: "json",
+    rawMimeType: "application/json",
+  });
 };
 
 const downloadContentAsFile = async (

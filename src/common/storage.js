@@ -14,6 +14,7 @@ import {
 const REQUEST_BODIES_STORAGE_KEY = "requestBodiesCache";
 const ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY = "graphxrayAllowExternalSnippets";
 const SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY = "graphxraySensitiveCaptureConsent";
+const EXPORT_SANITIZATION_MODE_STORAGE_KEY = "graphxrayExportSanitizationMode";
 const LEGACY_EXTENSION_STATE = {
   currentMetrics: {
     urls: [],
@@ -71,6 +72,13 @@ const saveSensitiveCaptureConsentAccepted = async (accepted) =>
   await saveObjectInLocalStorage({
     [SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY]: Boolean(accepted),
   });
+const getExportSanitizationMode = async () =>
+  (await getObjectFromLocalStorage(EXPORT_SANITIZATION_MODE_STORAGE_KEY)) ||
+  "redacted";
+const saveExportSanitizationMode = async (mode) =>
+  await saveObjectInLocalStorage({
+    [EXPORT_SANITIZATION_MODE_STORAGE_KEY]: mode || "redacted",
+  });
 const getGraphXRaySession = async () => {
   const rawSession = await getObjectFromLocalStorage(GRAPHXRAY_SESSION_STORAGE_KEY);
   const normalizedSession = normalizeSessionState(rawSession);
@@ -92,6 +100,7 @@ const clearGraphXRaySession = async () =>
 const clearGraphXRayLocalData = async () => {
   await saveObjectInLocalStorage({
     ...LEGACY_EXTENSION_STATE,
+    [EXPORT_SANITIZATION_MODE_STORAGE_KEY]: "redacted",
     [SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY]: false,
     [GRAPHXRAY_SESSION_STORAGE_KEY]: createEmptySessionState(),
   });
@@ -150,6 +159,7 @@ const addKeystrokes = async (i = 1) => {
 
 export {
   ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY,
+  EXPORT_SANITIZATION_MODE_STORAGE_KEY,
   SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY,
   getObjectFromLocalStorage,
   saveObjectInLocalStorage,
@@ -166,6 +176,8 @@ export {
   saveAllowExternalSnippets,
   getSensitiveCaptureConsentAccepted,
   saveSensitiveCaptureConsentAccepted,
+  getExportSanitizationMode,
+  saveExportSanitizationMode,
   getGraphXRaySession,
   saveGraphXRaySession,
   clearGraphXRaySession,

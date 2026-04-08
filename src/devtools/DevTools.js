@@ -22,7 +22,9 @@ import {
 } from "../common/extensionApi.js";
 import {
   ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY,
+  EXPORT_SANITIZATION_MODE_STORAGE_KEY,
   SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY,
+  getExportSanitizationMode,
   getAllowExternalSnippets,
   getGraphXRaySession,
   getSensitiveCaptureConsentAccepted,
@@ -50,7 +52,13 @@ import {
   getSnippetLanguageOption,
   SNIPPET_LANGUAGE_OPTIONS,
 } from "../common/snippetLanguages.js";
-import { warnLog } from "../common/security.js";
+import {
+  buildExportArtifact,
+  DEFAULT_EXPORT_SANITIZATION_MODE,
+  normalizeExportSanitizationMode,
+  redactSensitiveText,
+  warnLog,
+} from "../common/security.js";
 
 const theme = getTheme();
 
@@ -79,6 +87,7 @@ class DevTools extends React.Component {
       stack: [],
       diagnosticLogs: [],
       diagnosticMode,
+      exportSanitizationMode: DEFAULT_EXPORT_SANITIZATION_MODE,
       snippetLanguage: "powershell",
       ultraXRayMode,
     };
@@ -90,6 +99,7 @@ class DevTools extends React.Component {
     this.hydrateSessionFromStorage();
     this.hydrateCaptureConsent();
     this.hydrateExternalSnippetSetting();
+    this.hydrateExportSanitizationMode();
     this.syncDiagnosticModeState();
     this.addSessionStorageListener();
     this.addDiagnosticLogListener();
@@ -114,6 +124,14 @@ class DevTools extends React.Component {
   hydrateExternalSnippetSetting = async () => {
     this.setState({
       allowExternalSnippets: await getAllowExternalSnippets(),
+    });
+  };
+
+  hydrateExportSanitizationMode = async () => {
+    this.setState({
+      exportSanitizationMode: normalizeExportSanitizationMode(
+        await getExportSanitizationMode()
+      ),
     });
   };
 
@@ -187,6 +205,7 @@ class DevTools extends React.Component {
       stack: session.stack,
       diagnosticLogs: session.diagnosticLogs,
       diagnosticMode: session.modes.diagnosticMode,
+      exportSanitizationMode: session.modes.exportSanitizationMode,
       snippetLanguage: session.modes.snippetLanguage,
       ultraXRayMode: session.modes.ultraXRayMode,
     });
@@ -210,6 +229,19 @@ class DevTools extends React.Component {
           this.setState({
             allowExternalSnippets: Boolean(
               changes[ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY]?.newValue
+            ),
+          });
+        }
+
+        if (
+          Object.prototype.hasOwnProperty.call(
+            changes,
+            EXPORT_SANITIZATION_MODE_STORAGE_KEY
+          )
+        ) {
+          this.setState({
+            exportSanitizationMode: normalizeExportSanitizationMode(
+              changes[EXPORT_SANITIZATION_MODE_STORAGE_KEY]?.newValue
             ),
           });
         }
@@ -251,6 +283,7 @@ class DevTools extends React.Component {
           stack: nextSession.stack,
           diagnosticLogs: nextSession.diagnosticLogs,
           diagnosticMode: nextSession.modes.diagnosticMode,
+          exportSanitizationMode: nextSession.modes.exportSanitizationMode,
           snippetLanguage: nextSession.modes.snippetLanguage,
           ultraXRayMode: nextSession.modes.ultraXRayMode,
         });
@@ -267,6 +300,7 @@ class DevTools extends React.Component {
         captureConsentAccepted: this.state.captureConsentAccepted,
         capturePaused: this.state.capturePaused,
         diagnosticMode: this.state.diagnosticMode,
+        exportSanitizationMode: this.state.exportSanitizationMode,
         snippetLanguage: this.state.snippetLanguage,
         ultraXRayMode: this.state.ultraXRayMode,
       },
@@ -386,12 +420,44 @@ class DevTools extends React.Component {
       return;
     }
     const languageOpt = getSnippetLanguageOption(this.state.snippetLanguage);
-    const fileName = "GraphXRaySession." + languageOpt.fileExt;
-    await downloadContentAsFile(script, fileName);
+    const exportMode = this.state.exportSanitizationMode;
+    const scriptArtifact =
+      exportMode === "summary"
+        ? buildExportArtifact({
+            rawContent: script,
+            mode: exportMode,
+            summary: {
+              kind: "script-summary",
+              language: this.state.snippetLanguage,
+              snippetCount: this.state.stack.filter(
+                (entry) => entry.code && entry.code.trim()
+              ).length,
+              batchSnippetCount: this.state.stack.reduce(
+                (total, entry) =>
+                  total + (entry.batchCodeSnippets?.length || 0),
+                0
+              ),
+            },
+          })
+        : {
+            content:
+              exportMode === "redacted" ? redactSensitiveText(script) : script,
+            extension: languageOpt.fileExt,
+            mimeType: "text/plain",
+          };
+    const fileName =
+      "GraphXRaySession." +
+      (scriptArtifact.extension || languageOpt.fileExt);
+    await downloadContentAsFile(
+      scriptArtifact.content,
+      fileName,
+      scriptArtifact.mimeType
+    );
     this.recordDiagnostic("save_script_requested", {
       fileName,
       language: this.state.snippetLanguage,
       scriptLength: script.length,
+      exportMode,
     });
   };
 
@@ -430,17 +496,18 @@ class DevTools extends React.Component {
       return;
     }
 
-    const logPayload = buildDiagnosticExportPayload(
-      this.buildCurrentSessionSnapshot()
+    const logArtifact = buildDiagnosticExportPayload(
+      this.buildCurrentSessionSnapshot(),
+      this.state.exportSanitizationMode
     );
     const fileName = `GraphXRayDiagnostics-${new Date()
       .toISOString()
-      .replace(/[:.]/g, "-")}.json`;
+      .replace(/[:.]/g, "-")}.${logArtifact.extension || "json"}`;
 
     downloadContentAsFile(
-      JSON.stringify(logPayload, null, 2),
+      logArtifact.content,
       fileName,
-      "application/json"
+      logArtifact.mimeType
     );
   };
 
@@ -475,6 +542,32 @@ class DevTools extends React.Component {
     );
   };
 
+  parseHostGraphCallMessage = (eventData) => {
+    try {
+      const message =
+        typeof eventData === "string" ? JSON.parse(eventData) : eventData;
+
+      if (
+        !message ||
+        message.eventName !== "GraphCall" ||
+        typeof message.url !== "string"
+      ) {
+        return null;
+      }
+
+      return message;
+    } catch (error) {
+      this.recordDiagnostic(
+        "host_message_rejected",
+        {
+          reason: "invalid_json",
+        },
+        "warning"
+      );
+      return null;
+    }
+  };
+
   addDiagnosticLogListener() {
     addRuntimeMessageListener((message) => {
       if (
@@ -496,27 +589,29 @@ class DevTools extends React.Component {
       return;
     }
     hostWebview.addEventListener("message", (event) => {
-      const msg = JSON.parse(event.data);
-      if (msg.eventName === "GraphCall") {
-        if (!this.state.captureConsentAccepted) {
-          this.recordDiagnostic("capture_skipped_no_consent", {
-            source: "host_graph_call",
-            eventName: msg.eventName,
-          });
-          return;
-        }
-        if (this.state.capturePaused) {
-          this.recordDiagnostic("capture_skipped_paused", {
-            source: "host_graph_call",
-            eventName: msg.eventName,
-          });
-          return;
-        }
-        this.recordDiagnostic("host_graph_call_received", {
+      const msg = this.parseHostGraphCallMessage(event.data);
+      if (!msg) {
+        return;
+      }
+
+      if (!this.state.captureConsentAccepted) {
+        this.recordDiagnostic("capture_skipped_no_consent", {
+          source: "host_graph_call",
           eventName: msg.eventName,
         });
-        this.showRequest(msg);
+        return;
       }
+      if (this.state.capturePaused) {
+        this.recordDiagnostic("capture_skipped_paused", {
+          source: "host_graph_call",
+          eventName: msg.eventName,
+        });
+        return;
+      }
+      this.recordDiagnostic("host_graph_call_received", {
+        eventName: msg.eventName,
+      });
+      this.showRequest(msg);
     });
   }
 
@@ -1110,6 +1205,7 @@ class DevTools extends React.Component {
                   }}
                 >
                   <CodeView
+                    exportSanitizationMode={this.state.exportSanitizationMode}
                     request={request}
                     lightUrl={true}
                     snippetLanguage={this.state.snippetLanguage}

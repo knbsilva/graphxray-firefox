@@ -2,15 +2,27 @@ import React from "react";
 import "./Options.css";
 import { AppHeader } from "../components/AppHeader";
 import { FontSizes } from "@fluentui/theme";
-import { getTheme, MessageBar, MessageBarType, Toggle } from "@fluentui/react";
+import {
+  Dropdown,
+  getTheme,
+  MessageBar,
+  MessageBarType,
+  Toggle,
+} from "@fluentui/react";
 import { isFirefoxBrowser } from "../common/extensionApi.js";
 import {
+  getExportSanitizationMode,
   getAllowExternalSnippets,
   getSensitiveCaptureConsentAccepted,
+  saveExportSanitizationMode,
   saveAllowExternalSnippets,
   saveSensitiveCaptureConsentAccepted,
 } from "../common/storage.js";
 import { PrimaryButton } from "@fluentui/react/lib/Button";
+import {
+  DEFAULT_EXPORT_SANITIZATION_MODE,
+  EXPORT_SANITIZATION_MODES,
+} from "../common/security.js";
 
 const theme = getTheme();
 class Options extends React.Component {
@@ -22,6 +34,7 @@ class Options extends React.Component {
       stack: [],
       allowExternalSnippets: false,
       captureConsentAccepted: false,
+      exportSanitizationMode: DEFAULT_EXPORT_SANITIZATION_MODE,
     };
   }
 
@@ -29,6 +42,7 @@ class Options extends React.Component {
     this.setState({
       allowExternalSnippets: await getAllowExternalSnippets(),
       captureConsentAccepted: await getSensitiveCaptureConsentAccepted(),
+      exportSanitizationMode: await getExportSanitizationMode(),
     });
   }
 
@@ -44,6 +58,17 @@ class Options extends React.Component {
     await saveSensitiveCaptureConsentAccepted(true);
     this.setState({
       captureConsentAccepted: true,
+    });
+  };
+
+  onExportSanitizationModeChange = async (_, option) => {
+    if (!option) {
+      return;
+    }
+
+    await saveExportSanitizationMode(option.key);
+    this.setState({
+      exportSanitizationMode: option.key,
     });
   };
 
@@ -125,6 +150,36 @@ class Options extends React.Component {
                   do not have a local generator. When disabled, PowerShell stays
                   local and other languages fail closed without external
                   submission.
+                </p>
+              </div>
+              <div
+                style={{
+                  boxShadow: theme.effects.elevation4,
+                  padding: "16px",
+                  marginBottom: "20px",
+                  borderRadius: "8px",
+                }}
+              >
+                <h3 style={{ marginTop: 0 }}>Export sanitization</h3>
+                <Dropdown
+                  label="Default export mode"
+                  selectedKey={this.state.exportSanitizationMode}
+                  options={EXPORT_SANITIZATION_MODES.map((mode) => ({
+                    key: mode,
+                    text:
+                      mode === "raw"
+                        ? "Raw"
+                        : mode === "summary"
+                        ? "Summary"
+                        : "Redacted",
+                  }))}
+                  onChange={this.onExportSanitizationModeChange}
+                />
+                <p style={{ marginBottom: 0, color: "#475569" }}>
+                  Raw exports preserve captured content as-is. Redacted exports
+                  mask sensitive tokens, emails, GUIDs, and common credential
+                  fields. Summary exports save metadata-only JSON instead of the
+                  full request, response, or snippet body.
                 </p>
               </div>
               <ul>

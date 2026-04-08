@@ -135,3 +135,6 @@
 - Hardened the GitHub Actions workflow with explicit `contents: write` permissions, concurrency control, and `npm ci` for deterministic dependency installation.
 - Added a basic `Dependabot` configuration for npm packages and GitHub Actions updates.
 - Switched public-asset packaging from broad folder copy to an explicit allowlist of required extension pages and icons.
+- Added a shared export sanitization mode (`raw`, `redacted`, `summary`) in the options page and synchronized it across DevTools and the standalone dashboard.
+- Applied export sanitization to request, response, snippet, script, and diagnostic exports, with `redacted` as the secure default.
+- Rejected untrusted runtime message senders and hardened host/webview message parsing so malformed or spoofed payloads are ignored instead of being processed directly.
