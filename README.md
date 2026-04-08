@@ -203,6 +203,12 @@ This is the folder you should use for temporary loading in Firefox when you want
 - Captured exports such as `GraphXRay*.json`, `GraphXRay*.ps1`, `GraphXRay*.py`, and `.har` files should never be committed to the repository.
 - Persisted session data now expires automatically after roughly 60 minutes unless a newer capture refreshes it.
 
+## Telemetry Stance
+
+- Graph X-Ray does not include an analytics or telemetry SDK for usage tracking.
+- External network traffic can still happen in one explicit case: when you enable external snippet generation, supported request payloads can be sent to the Microsoft Graph DevX snippet service.
+- Treat external snippet generation as operational data transfer, not as analytics.
+
 ## Session Controls
 
 - `Save script` exports the deduplicated generated snippets for the current session.

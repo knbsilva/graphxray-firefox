@@ -35,3 +35,21 @@ Please assume the following are security-relevant:
 
 Do not include live secrets, tokens, cookies, tenant identifiers, or raw admin
 captures in public reports. Redact payloads before sharing examples.
+
+## Telemetry And External Traffic
+
+This project does not embed an analytics SDK or usage telemetry pipeline.
+
+However, the extension can still make external requests when the user
+explicitly enables external snippet generation. In that mode, supported request
+payloads can be sent to the Microsoft Graph DevX snippet service so the
+extension can obtain a server-generated snippet.
+
+Treat that traffic as sensitive operational data handling, not as analytics.
+
+## Safe Debugging Expectations
+
+- Do not reintroduce raw `console.log` statements for request bodies, response
+  bodies, tokens, cookies, or administrative payloads.
+- Prefer existing redacted diagnostics and security helpers.
+- If you need temporary debugging, keep it redacted and remove it before merge.
