@@ -24,6 +24,7 @@ import {
   ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY,
   getAllowExternalSnippets,
   getGraphXRaySession,
+  clearGraphXRayLocalData,
   saveAllowExternalSnippets,
   saveDiagnosticModeEnabled,
   saveGraphXRaySession,
@@ -393,6 +394,15 @@ class DevTools extends React.Component {
       return;
     }
 
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm(
+        "Diagnostic logs can contain sensitive Microsoft 365 administrative data. Save them to disk?"
+      )
+    ) {
+      return;
+    }
+
     const logPayload = buildDiagnosticExportPayload(
       this.buildCurrentSessionSnapshot()
     );
@@ -405,6 +415,20 @@ class DevTools extends React.Component {
       fileName,
       "application/json"
     );
+  };
+
+  clearLocalCache = async () => {
+    await clearGraphXRayLocalData();
+    this.setState(
+      {
+        stack: [],
+        diagnosticLogs: [],
+      },
+      this.scheduleSessionSync
+    );
+    this.recordDiagnostic("local_cache_cleared", {
+      snippetLanguage: this.state.snippetLanguage,
+    });
   };
 
   addDiagnosticLogListener() {
@@ -767,6 +791,7 @@ class DevTools extends React.Component {
             <DevToolsCommandBar
               capturePaused={this.state.capturePaused}
               clearSession={this.clearSession}
+              clearLocalCache={this.clearLocalCache}
               openDashboard={this.openDashboard}
               saveScript={this.saveScript}
               saveLogs={this.saveLogs}

@@ -196,6 +196,15 @@ export const CodeView = ({ request, lightUrl, snippetLanguage }) => {
       return;
     }
 
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm(
+        "This request export can contain sensitive Microsoft 365 administrative data. Save it to disk?"
+      )
+    ) {
+      return;
+    }
+
     const descriptor = getContentFileDescriptor(content);
     await downloadContentAsFile(
       content,
@@ -206,6 +215,15 @@ export const CodeView = ({ request, lightUrl, snippetLanguage }) => {
 
   const saveResponseToFile = async (content, suffix = "response") => {
     if (!content || !content.trim()) {
+      return;
+    }
+
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm(
+        "This response export can contain sensitive Microsoft 365 administrative data. Save it to disk?"
+      )
+    ) {
       return;
     }
 
@@ -675,23 +693,35 @@ export const CodeView = ({ request, lightUrl, snippetLanguage }) => {
                           }}
                         >
                           <span>Request</span>
-                          <IconButton
-                            iconProps={{ iconName: "Download" }}
-                            title="Save request"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              saveRequestToFile(request.requestBody);
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "8px",
                             }}
-                            styles={{
-                              root: {
-                                minWidth: "28px",
-                                width: "28px",
-                                height: "28px",
-                                color: "#334155",
-                              },
-                            }}
-                          />
+                          >
+                            {renderStatusBadge("Sensitive data", {
+                              backgroundColor: "#fee2e2",
+                              color: "#991b1b",
+                            })}
+                            <IconButton
+                              iconProps={{ iconName: "Download" }}
+                              title="Save request"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                saveRequestToFile(request.requestBody);
+                              }}
+                              styles={{
+                                root: {
+                                  minWidth: "28px",
+                                  width: "28px",
+                                  height: "28px",
+                                  color: "#334155",
+                                },
+                              }}
+                            />
+                          </div>
                         </div>
                       </div>
                       <div style={{ position: "relative" }}>
@@ -762,26 +792,38 @@ export const CodeView = ({ request, lightUrl, snippetLanguage }) => {
                           }}
                         >
                           <span>Response</span>
-                          <IconButton
-                            iconProps={{ iconName: "Download" }}
-                            title="Save response"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              saveResponseToFile(
-                                request.responseContent,
-                                "response"
-                              );
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "8px",
                             }}
-                            styles={{
-                              root: {
-                                minWidth: "28px",
-                                width: "28px",
-                                height: "28px",
-                                color: "#334155",
-                              },
-                            }}
-                          />
+                          >
+                            {renderStatusBadge("Sensitive data", {
+                              backgroundColor: "#fee2e2",
+                              color: "#991b1b",
+                            })}
+                            <IconButton
+                              iconProps={{ iconName: "Download" }}
+                              title="Save response"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                saveResponseToFile(
+                                  request.responseContent,
+                                  "response"
+                                );
+                              }}
+                              styles={{
+                                root: {
+                                  minWidth: "28px",
+                                  width: "28px",
+                                  height: "28px",
+                                  color: "#334155",
+                                },
+                              }}
+                            />
+                          </div>
                         </div>
                       </div>
                       <div style={{ position: "relative" }}>

@@ -1,4 +1,5 @@
 import {
+  getGraphXRaySession,
   getDiagnosticModeEnabled,
   getObjectFromLocalStorage,
   getRequestBodiesCache,
@@ -114,6 +115,12 @@ export async function init() {
     await saveRequestBodiesCache(snapshotRequestBodies());
   };
 
+  const clearRequestBodyCache = async () => {
+    requestBodies = [];
+    await saveRequestBodiesCache([]);
+    emitDiagnosticLog("request_body_cache_cleared");
+  };
+
   const persistRequestBody = (url, method, body, timestamp) => {
     requestBodies = pruneRequestBodies([
       {
@@ -176,6 +183,7 @@ export async function init() {
   };
 
   await ensureExtensionState();
+  await getGraphXRaySession();
   extensionApi.storage?.onChanged?.addListener((changes, areaName) => {
     if (
       areaName === "local" &&
@@ -262,6 +270,11 @@ export async function init() {
         bodyPreview: body ? createDiagnosticPreview(body) : null,
       });
       return { body };
+    }
+
+    if (request.type === "CLEAR_REQUEST_BODY_CACHE") {
+      await clearRequestBodyCache();
+      return { cleared: true };
     }
 
     if (request.method === "start") {

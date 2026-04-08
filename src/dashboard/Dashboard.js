@@ -20,6 +20,7 @@ import {
 } from "../common/diagnostics.js";
 import {
   ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY,
+  clearGraphXRayLocalData,
   getGraphXRaySession,
   saveGraphXRaySession,
   getAllowExternalSnippets,
@@ -345,6 +346,17 @@ class Dashboard extends React.Component {
     await saveGraphXRaySession(nextSession);
   };
 
+  clearLocalCache = async () => {
+    await clearGraphXRayLocalData();
+    const nextSession = buildSessionSnapshot({
+      stack: [],
+      diagnosticLogs: [],
+      modes: this.state.session.modes,
+      sourceContext: "dashboard",
+    });
+    await saveGraphXRaySession(nextSession);
+  };
+
   saveScript = async () => {
     const script = getSaveScriptContentFromStack(this.state.session.stack);
     if (!script.trim()) {
@@ -361,6 +373,15 @@ class Dashboard extends React.Component {
 
   saveLogs = async () => {
     if (this.state.session.diagnosticLogs.length === 0) {
+      return;
+    }
+
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm(
+        "Diagnostic logs can contain sensitive Microsoft 365 administrative data. Save them to disk?"
+      )
+    ) {
       return;
     }
 
@@ -497,6 +518,7 @@ class Dashboard extends React.Component {
         <DevToolsCommandBar
           capturePaused={session.modes.capturePaused}
           clearSession={this.clearSession}
+          clearLocalCache={this.clearLocalCache}
           saveScript={this.saveScript}
           saveLogs={this.saveLogs}
           toggleCapturePaused={this.toggleCapturePaused}

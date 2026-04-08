@@ -11,15 +11,7 @@
   "background": {
     "scripts": ["background.bundle.js"]
   },
-  "content_scripts": [
-    {
-      "matches": ["http://*/*", "https://*/*"],
-      "js": ["contentScript.bundle.js"]
-    }
-  ],
   "host_permissions": [
-    "https://portal.azure.com/",
-    "https://portal.azure.us/",
     "https://graph.microsoft.com/",
     "https://graph.microsoft.us/",
     "https://microsoftgraph.chinacloudapi.cn/",

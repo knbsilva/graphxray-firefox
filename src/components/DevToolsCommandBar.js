@@ -24,6 +24,14 @@ class DevToolsCommandBar extends React.Component {
         onClick: this.props.saveLogs,
         iconProps: { iconName: "DiagnosticDataBarTooltip" },
       },
+      this.props.clearLocalCache
+        ? {
+            key: "clear-local",
+            text: "Clear local cache",
+            onClick: this.props.clearLocalCache,
+            iconProps: { iconName: "Broom" },
+          }
+        : null,
       this.props.toggleCapturePaused
         ? {
             key: "capture",

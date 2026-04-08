@@ -1,13 +1,27 @@
-import { getStorageLocal, setStorageLocal } from "./extensionApi.js";
+import {
+  getStorageLocal,
+  sendRuntimeMessage,
+  setStorageLocal,
+} from "./extensionApi.js";
 import { DIAGNOSTIC_MODE_STORAGE_KEY } from "./diagnostics.js";
 import {
   GRAPHXRAY_SESSION_STORAGE_KEY,
   createEmptySessionState,
+  isSessionExpired,
   normalizeSessionState,
 } from "./session.js";
 
 const REQUEST_BODIES_STORAGE_KEY = "requestBodiesCache";
 const ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY = "graphxrayAllowExternalSnippets";
+const LEGACY_EXTENSION_STATE = {
+  currentMetrics: {
+    urls: [],
+  },
+  contextSwitches: 0,
+  stack: [],
+  isActive: false,
+  [REQUEST_BODIES_STORAGE_KEY]: [],
+};
 
 const saveObjectInLocalStorage = async function (obj) {
   return setStorageLocal(obj);
@@ -50,16 +64,38 @@ const saveAllowExternalSnippets = async (enabled) =>
   await saveObjectInLocalStorage({
     [ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY]: Boolean(enabled),
   });
-const getGraphXRaySession = async () =>
-  normalizeSessionState(
-    await getObjectFromLocalStorage(GRAPHXRAY_SESSION_STORAGE_KEY)
-  );
+const getGraphXRaySession = async () => {
+  const rawSession = await getObjectFromLocalStorage(GRAPHXRAY_SESSION_STORAGE_KEY);
+  const normalizedSession = normalizeSessionState(rawSession);
+
+  if (rawSession?.updatedAt && isSessionExpired(rawSession.updatedAt)) {
+    await saveObjectInLocalStorage({
+      [GRAPHXRAY_SESSION_STORAGE_KEY]: createEmptySessionState(),
+    });
+  }
+
+  return normalizedSession;
+};
 const saveGraphXRaySession = async (session) =>
   await saveObjectInLocalStorage({
     [GRAPHXRAY_SESSION_STORAGE_KEY]: normalizeSessionState(session),
   });
 const clearGraphXRaySession = async () =>
   await saveGraphXRaySession(createEmptySessionState());
+const clearGraphXRayLocalData = async () => {
+  await saveObjectInLocalStorage({
+    ...LEGACY_EXTENSION_STATE,
+    [GRAPHXRAY_SESSION_STORAGE_KEY]: createEmptySessionState(),
+  });
+
+  try {
+    await sendRuntimeMessage({
+      type: "CLEAR_REQUEST_BODY_CACHE",
+    });
+  } catch (error) {
+    // Ignore background-clear errors here; persisted local data has already been reset.
+  }
+};
 
 const addChoices = async (i = 1) => {
   const currentMetrics = await getObjectFromLocalStorage("currentMetrics");
@@ -122,6 +158,7 @@ export {
   getGraphXRaySession,
   saveGraphXRaySession,
   clearGraphXRaySession,
+  clearGraphXRayLocalData,
   addClicks,
   addConcepts,
   addChoices,

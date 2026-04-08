@@ -115,3 +115,14 @@
 - Blocked external DevX submission when local-only mode is active and made non-local languages fail closed instead of silently sending payloads.
 - Surfaced the external-snippet mode in the Firefox options page, DevTools panel, dashboard summary, and README.
 - Replaced substring-based trusted-domain checks with strict `URL.origin` validation to prevent spoofed hosts from matching trusted Microsoft domains.
+
+### Security Phase 2
+
+- Removed the Firefox content script from the production manifest because the current Firefox capture flow does not require page-wide injection.
+- Removed unused Firefox host permissions for `portal.azure.com` and `portal.azure.us`.
+- Added repository guardrails in `.gitignore` for Graph X-Ray exports and `.har` captures.
+- Added `SECURITY.md` with a basic private-reporting and sensitive-data handling policy.
+- Added `Clear local cache` so DevTools and the dashboard can purge the current session plus local request-body cache and legacy capture state.
+- Added confirmation prompts for request, response, and diagnostic log exports because those files can contain sensitive administrative data.
+- Added visible sensitive-data labels on request and response panels before individual exports.
+- Added a default local session retention TTL of roughly 60 minutes and purge-on-read behavior for expired persisted sessions.

@@ -191,15 +191,19 @@ This is the folder you should use for temporary loading in Firefox when you want
 - Diagnostic exports can contain redacted troubleshooting data, but should still be treated as sensitive.
 - In `Local only` mode, Graph X-Ray does not submit captured request payloads to the external DevX snippet service.
 - If you enable external snippets, request payload content for supported languages can be sent to the DevX endpoint for snippet generation.
+- Captured exports such as `GraphXRay*.json`, `GraphXRay*.ps1`, `GraphXRay*.py`, and `.har` files should never be committed to the repository.
+- Persisted session data now expires automatically after roughly 60 minutes unless a newer capture refreshes it.
 
 ## Session Controls
 
 - `Save script` exports the deduplicated generated snippets for the current session.
-- `Save logs` exports the diagnostic session when Diagnostic Mode is enabled.
+- `Save logs` exports the diagnostic session when Diagnostic Mode is enabled and asks for confirmation because the file can contain sensitive administrative data.
 - `Pause capture` / `Resume capture` controls whether new requests are appended while keeping the current session available for review and export.
+- `Clear local cache` clears the current session plus local request-body correlation cache and legacy local capture state.
+- Persisted session state is automatically purged after roughly 60 minutes of inactivity.
 - Individual entries can export:
-  - `Request` when a request body exists
-  - `Response` when response content exists
+  - `Request` when a request body exists, with a confirmation prompt
+  - `Response` when response content exists, with a confirmation prompt
   - `Snippet` when generated code exists
 
 ## Adding non-Graph API calls to Ultra X-Ray
@@ -219,6 +223,7 @@ This is an independently developed application and is not endorsed or supported 
 
 - Report bugs and problems in [GitHub Issues](https://github.com/knbsilva/graphxray-firefox/issues).
 - Use [GitHub Discussions](https://github.com/knbsilva/graphxray-firefox/discussions) for ideas, questions, and general discussion.
+- For security-sensitive reports, prefer a private disclosure path instead of a public issue. See [SECURITY.md](./SECURITY.md).
 
 ## Acknowledgements
 

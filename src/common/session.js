@@ -2,6 +2,7 @@ import { downloadFile as downloadExtensionFile } from "./extensionApi.js";
 import { warnLog } from "./security.js";
 
 const GRAPHXRAY_SESSION_STORAGE_KEY = "graphxraySession";
+const DEFAULT_SESSION_RETENTION_MS = 60 * 60 * 1000;
 
 const DEFAULT_SESSION_MODES = {
   allowExternalSnippets: false,
@@ -19,9 +20,29 @@ const createEmptySessionState = () => ({
   sourceContext: "none",
 });
 
+const isSessionExpired = (
+  updatedAt,
+  retentionMs = DEFAULT_SESSION_RETENTION_MS
+) => {
+  if (!updatedAt) {
+    return false;
+  }
+
+  const updatedAtMs = new Date(updatedAt).getTime();
+  if (Number.isNaN(updatedAtMs)) {
+    return true;
+  }
+
+  return Date.now() - updatedAtMs > retentionMs;
+};
+
 const normalizeSessionState = (session) => {
   const baseState = createEmptySessionState();
   if (!session || typeof session !== "object") {
+    return baseState;
+  }
+
+  if (isSessionExpired(session.updatedAt)) {
     return baseState;
   }
 
@@ -166,9 +187,11 @@ const downloadContentAsFile = async (
 };
 
 export {
+  DEFAULT_SESSION_RETENTION_MS,
   GRAPHXRAY_SESSION_STORAGE_KEY,
   DEFAULT_SESSION_MODES,
   createEmptySessionState,
+  isSessionExpired,
   normalizeSessionState,
   buildSessionSnapshot,
   getSaveScriptContentFromStack,
