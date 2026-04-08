@@ -134,3 +134,4 @@
 - Reset the persisted consent acknowledgement as part of `Clear local cache` so capture does not silently restart after a local purge.
 - Hardened the GitHub Actions workflow with explicit `contents: write` permissions, concurrency control, and `npm ci` for deterministic dependency installation.
 - Added a basic `Dependabot` configuration for npm packages and GitHub Actions updates.
+- Switched public-asset packaging from broad folder copy to an explicit allowlist of required extension pages and icons.
