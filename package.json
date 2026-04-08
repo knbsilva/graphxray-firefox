@@ -85,6 +85,8 @@
     "sync:version": "node scripts/syncManifestVersion.js",
     "package": "node scripts/package.js --browser=firefox",
     "package:firefox": "node scripts/package.js --browser=firefox",
+    "audit:prod": "npm audit --omit=dev",
+    "audit:prod:json": "npm audit --omit=dev --json",
     "test": "node scripts/test.js"
   },
   "eslintConfig": {

@@ -53,3 +53,11 @@ Treat that traffic as sensitive operational data handling, not as analytics.
   bodies, tokens, cookies, or administrative payloads.
 - Prefer existing redacted diagnostics and security helpers.
 - If you need temporary debugging, keep it redacted and remove it before merge.
+
+## Release Hygiene
+
+- Continuous integration should validate builds and packaged artifacts on push
+  and pull request events.
+- Release publication should remain a deliberate manual step.
+- Avoid workflows that auto-commit back to `main` or publish artifacts from
+  unreviewed changes.

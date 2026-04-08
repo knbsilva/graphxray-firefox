@@ -142,3 +142,5 @@
 - Replaced the developer-local Jest runner path with a repo-relative path to remove machine-specific metadata from `package.json`.
 - Added an explicit first-enable acknowledgement flow for Ultra X-Ray and a persistent warning banner while the higher-risk mode is enabled.
 - Added a telemetry stance to the docs, a safe debugging guide, and a pull-request security checklist to reduce future regression risk.
+- Changed GitHub Actions so push/PR runs are validation-only and release publication is a manual workflow dispatch instead of an automatic mutation of `main`.
+- Added a production dependency audit script and a scheduled/manual GitHub Actions workflow that uploads an `npm audit` report artifact without silently ignoring dependency drift.

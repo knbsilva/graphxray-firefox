@@ -147,8 +147,6 @@ To prepare the Firefox development build, run `npm start`, open `about:debugging
 
 ### Production build
 
-Production builds are automatically created in GitHub with the right version number.
-
 If you want to create a production build of the extension on your desktop, run `npm run build`.
 
 The Firefox build artifacts will be placed in `build/firefox`.
@@ -162,6 +160,8 @@ Use the packaging scripts when you need releasable files instead of just unpacke
   - `build/packages/graphxray-firefox-unsigned-v<version>.xpi`
 
 The Firefox `.xpi` is unsigned. Use the unpacked Firefox build for `about:debugging`, or submit the unsigned `.xpi` to the Mozilla signing flow before normal installation.
+
+GitHub Actions now treats `push` and `pull_request` runs as validation-only. Release creation is a manual `workflow_dispatch` step so the workflow no longer mutates `main` automatically.
 
 ## Available Scripts
 
@@ -180,6 +180,10 @@ The development build refreshes as you edit files, and build/lint errors are sho
 Builds the Firefox production output into `build/firefox`.
 
 This is the folder you should use for temporary loading in Firefox when you want to validate a production-style build locally.
+
+### `npm run audit:prod`
+
+Runs a production-focused dependency audit (`npm audit --omit=dev`) against the current lockfile.
 
 ## Snippet Behavior
 
