@@ -10,7 +10,7 @@ Use it to inspect requests and responses, generate snippets, export evidence, an
 
 - **API Call Inspection**: Capture and inspect all Microsoft Graph API requests (GET, POST, PATCH, DELETE) and their full responses directly within your browser's developer tools.
 
-- **Snippet Generation**: Convert recorded API calls into code snippets using the Microsoft Graph snippet service where supported, while rendering PowerShell locally first and upgrading it with DevX only when a better server-side snippet is available.
+- **Snippet Generation**: Convert recorded API calls into code snippets, with PowerShell rendered locally first and external DevX snippet generation available only when you explicitly enable it.
 
 - **Standalone Dashboard**: Review the active captured session in a separate extension page instead of staying inside the Web Developer Tools panel.
 
@@ -99,7 +99,8 @@ To view Graph calls in real-time:
 Notes:
 
 - Graph X-Ray currently depends on Firefox DevTools network capture. Keep Developer Tools open while capturing.
-- Snippet generation quality depends on endpoint coverage in the Microsoft Graph snippet service.
+- External snippet generation is opt-in. Local only mode prevents request payloads from being sent to the Microsoft Graph DevX snippet service.
+- Snippet generation quality depends on endpoint coverage in the Microsoft Graph snippet service when external snippets are enabled.
 - For PowerShell, this fork renders a local `Invoke-MgGraphRequest` snippet immediately and only upgrades it if DevX later returns a valid snippet.
 - Session entries are shown newest first in the UI, while `Save script` keeps the captured session export in chronological order.
 - `Pause capture` stops new entries from being appended without clearing the current session.
@@ -179,9 +180,17 @@ This is the folder you should use for temporary loading in Firefox when you want
 
 ## Snippet Behavior
 
-- C#, JavaScript, Java, Go, Python, and Objective-C depend on the Microsoft Graph snippet service when the endpoint is supported.
-- PowerShell is rendered locally first as an `Invoke-MgGraphRequest` snippet, then optionally upgraded if DevX returns a valid server-side snippet.
+- External snippet generation is disabled by default. Enable it from the Graph X-Ray options page if you want to allow request payloads to be sent to the DevX snippet service.
+- C#, JavaScript, Java, Go, Python, and Objective-C require the external Microsoft Graph snippet service when the endpoint is supported.
+- PowerShell is rendered locally first as an `Invoke-MgGraphRequest` snippet, then optionally upgraded if DevX is enabled and returns a valid server-side snippet.
 - PowerShell fallback snippets preserve the original captured URL, structure JSON bodies into a readable `$params` block when possible, and carry `ConsistencyLevel: eventual` for matching `GET` requests.
+
+## Privacy and Data Handling
+
+- Graph X-Ray can capture sensitive Microsoft 365 administrative request bodies, response bodies, and generated snippets.
+- Diagnostic exports can contain redacted troubleshooting data, but should still be treated as sensitive.
+- In `Local only` mode, Graph X-Ray does not submit captured request payloads to the external DevX snippet service.
+- If you enable external snippets, request payload content for supported languages can be sent to the DevX endpoint for snippet generation.
 
 ## Session Controls
 

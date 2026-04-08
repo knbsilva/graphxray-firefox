@@ -7,6 +7,7 @@ import {
 } from "./session.js";
 
 const REQUEST_BODIES_STORAGE_KEY = "requestBodiesCache";
+const ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY = "graphxrayAllowExternalSnippets";
 
 const saveObjectInLocalStorage = async function (obj) {
   return setStorageLocal(obj);
@@ -42,6 +43,12 @@ const getDiagnosticModeEnabled = async () =>
 const saveDiagnosticModeEnabled = async (enabled) =>
   await saveObjectInLocalStorage({
     [DIAGNOSTIC_MODE_STORAGE_KEY]: Boolean(enabled),
+  });
+const getAllowExternalSnippets = async () =>
+  Boolean(await getObjectFromLocalStorage(ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY));
+const saveAllowExternalSnippets = async (enabled) =>
+  await saveObjectInLocalStorage({
+    [ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY]: Boolean(enabled),
   });
 const getGraphXRaySession = async () =>
   normalizeSessionState(
@@ -84,7 +91,6 @@ const addClicks = async (i = 1) => {
       clicks: clicks + i,
     },
   });
-  console.log("getting clicks");
 };
 
 const addKeystrokes = async (i = 1) => {
@@ -99,6 +105,7 @@ const addKeystrokes = async (i = 1) => {
 };
 
 export {
+  ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY,
   getObjectFromLocalStorage,
   saveObjectInLocalStorage,
   commitIfActive,
@@ -110,6 +117,8 @@ export {
   saveRequestBodiesCache,
   getDiagnosticModeEnabled,
   saveDiagnosticModeEnabled,
+  getAllowExternalSnippets,
+  saveAllowExternalSnippets,
   getGraphXRaySession,
   saveGraphXRaySession,
   clearGraphXRaySession,

@@ -8,6 +8,7 @@ import { IconButton } from "@fluentui/react/lib/Button";
 import { isUltraXRayDomain } from "../common/domains.js";
 import { downloadContentAsFile } from "../common/session.js";
 import { getSnippetLanguageOption } from "../common/snippetLanguages.js";
+import { warnLog } from "../common/security.js";
 
 export const CodeView = ({ request, lightUrl, snippetLanguage }) => {
   const [isRequestBodyExpanded, setIsRequestBodyExpanded] = useState(false);
@@ -32,34 +33,19 @@ export const CodeView = ({ request, lightUrl, snippetLanguage }) => {
     }
     
     try {
-      // Clean up the content first - remove extra whitespace and newlines
-      const cleanContent = content.trim();
-      console.log("Formatting JSON content:", cleanContent.substring(0, 100) + "...");
-      
-      // Try to parse as JSON
-      const parsed = JSON.parse(cleanContent);
-      const formatted = JSON.stringify(parsed, null, 2);
-      console.log("Successfully formatted JSON");
-      return formatted;
+      const parsed = JSON.parse(content.trim());
+      return JSON.stringify(parsed, null, 2);
     } catch (e) {
-      console.log("Not valid JSON, returning original content:", e.message);
       return content;
     }
   };
 
   // Function to handle batch request/response matching
   const processBatchContent = (requestBody, responseContent) => {
-    console.log("=== BATCH PROCESSING DEBUG ===");
-    console.log("Request body:", requestBody);
-    console.log("Response content:", responseContent);
-    console.log("Request URL:", request.displayRequestUrl);
-    
     // Check if this is a batch endpoint
     const isBatchEndpoint = request.displayRequestUrl && request.displayRequestUrl.includes('/$batch');
-    console.log("Is batch endpoint (/$batch):", isBatchEndpoint);
     
     if (!requestBody || !responseContent) {
-      console.log("Missing request body or response content");
       return { requestBody, responseContent };
     }
 
@@ -67,48 +53,31 @@ export const CodeView = ({ request, lightUrl, snippetLanguage }) => {
       const requestData = JSON.parse(requestBody);
       const responseData = JSON.parse(responseContent);
 
-      console.log("Parsed request data:", requestData);
-      console.log("Parsed response data:", responseData);
-
       // Check if this is a batch request/response
       const hasBatchStructure = requestData.requests && responseData.responses;
-      console.log("Has batch structure:", hasBatchStructure);
       
       if (isBatchEndpoint && hasBatchStructure) {
-        console.log("✅ Detected batch request/response");
-        console.log("Number of requests:", requestData.requests.length);
-        console.log("Number of responses:", responseData.responses.length);
-        
         // Create a map of responses by ID
         const responseMap = {};
         responseData.responses.forEach(response => {
-          console.log("Response ID:", response.id, "Status:", response.status);
           if (response.id) {
             responseMap[response.id] = response;
           }
         });
 
-        console.log("Response map:", responseMap);
-
         // Match requests with their responses
         const matchedPairs = [];
         requestData.requests.forEach(request => {
-          console.log("Processing request ID:", request.id, "Method:", request.method, "URL:", request.url);
           if (request.id && responseMap[request.id]) {
             const response = responseMap[request.id];
-            console.log("✅ Found matching response for request ID:", request.id);
             matchedPairs.push({
               id: request.id,
               request: request,
               response: response,
               responseBody: response.body ? JSON.stringify(response.body, null, 2) : null
             });
-          } else {
-            console.log("❌ No matching response found for request ID:", request.id);
           }
         });
-
-        console.log("Final matched pairs:", matchedPairs.length);
         
         return { 
           isBatch: true, 
@@ -116,28 +85,18 @@ export const CodeView = ({ request, lightUrl, snippetLanguage }) => {
           originalRequest: requestBody,
           originalResponse: responseContent
         };
-      } else {
-        console.log("❌ Not a batch request/response");
-        console.log("Is batch endpoint:", isBatchEndpoint);
-        console.log("Has requests:", !!requestData.requests);
-        console.log("Has responses:", !!responseData.responses);
       }
     } catch (e) {
-      console.log("❌ Error processing batch content:", e);
-      console.log("Error parsing JSON. Request body type:", typeof requestBody);
-      console.log("Response content type:", typeof responseContent);
+      warnLog("Error processing batch content", e);
     }
-
-    console.log("=== END BATCH PROCESSING DEBUG ===");
     return { requestBody, responseContent };
   };
 
   const copyToClipboard = async (text) => {
     try {
       await navigator.clipboard.writeText(text);
-      console.log("Copied to clipboard:", text);
     } catch (err) {
-      console.error("Failed to copy text: ", err);
+      warnLog("Failed to copy text", err);
       // Fallback for older browsers
       const textArea = document.createElement("textarea");
       textArea.value = text;
@@ -444,6 +403,9 @@ export const CodeView = ({ request, lightUrl, snippetLanguage }) => {
   // Process batch content if applicable
   const batchData = processBatchContent(request.requestBody, request.responseContent);
   const snippetSourceMeta = getSnippetSourceMeta(request.codeSource);
+  const isLocalOnlySnippetError =
+    typeof request.codeError === "string" &&
+    request.codeError.includes("Local only mode");
 
   return (
     <div>
@@ -896,8 +858,9 @@ export const CodeView = ({ request, lightUrl, snippetLanguage }) => {
               lineHeight: "1.4",
             }}
           >
-            Snippet generation failed for this request. Diagnostic mode can be
-            used to export the full DevX error details.
+            {isLocalOnlySnippetError
+              ? "Snippet generation is blocked by Local only mode for this language. Enable external snippet generation if you want Graph X-Ray to call the DevX snippet service."
+              : "Snippet generation failed for this request. Diagnostic mode can be used to export the full DevX error details."}
           </div>
         )}
 

@@ -105,3 +105,13 @@
 - Switched the visible session order in DevTools and the standalone dashboard to newest-first while preserving chronological session exports.
 - Added a shared `Pause capture` / `Resume capture` command so DevTools and dashboard can stop or resume appending new entries without clearing the current session.
 - Added capture status UI and matching diagnostics for pause/resume and skipped captures while paused.
+
+### Security Phase 1
+
+- Added a shared security helper for redacting tokens, cookies, emails, GUIDs, and common credential fields before diagnostics or debug logging.
+- Switched diagnostic previews and diagnostic entry details to store redacted values instead of raw request/response snippets.
+- Removed or downgraded raw runtime `console.log` usage across DevTools, background capture, request/response rendering, and host messaging paths.
+- Added an explicit `Allow external snippet generation` setting with a secure default of `Local only`.
+- Blocked external DevX submission when local-only mode is active and made non-local languages fail closed instead of silently sending payloads.
+- Surfaced the external-snippet mode in the Firefox options page, DevTools panel, dashboard summary, and README.
+- Replaced substring-based trusted-domain checks with strict `URL.origin` validation to prevent spoofed hosts from matching trusted Microsoft domains.

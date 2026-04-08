@@ -21,7 +21,10 @@ import {
   openExtensionPage,
 } from "../common/extensionApi.js";
 import {
+  ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY,
+  getAllowExternalSnippets,
   getGraphXRaySession,
+  saveAllowExternalSnippets,
   saveDiagnosticModeEnabled,
   saveGraphXRaySession,
 } from "../common/storage.js";
@@ -43,6 +46,7 @@ import {
   getSnippetLanguageOption,
   SNIPPET_LANGUAGE_OPTIONS,
 } from "../common/snippetLanguages.js";
+import { warnLog } from "../common/security.js";
 
 const theme = getTheme();
 
@@ -65,6 +69,7 @@ class DevTools extends React.Component {
       : false;
 
     this.state = {
+      allowExternalSnippets: false,
       capturePaused: false,
       stack: [],
       diagnosticLogs: [],
@@ -78,6 +83,7 @@ class DevTools extends React.Component {
 
   componentDidMount() {
     this.hydrateSessionFromStorage();
+    this.hydrateExternalSnippetSetting();
     this.syncDiagnosticModeState();
     this.addSessionStorageListener();
     this.addDiagnosticLogListener();
@@ -97,6 +103,12 @@ class DevTools extends React.Component {
 
   syncDiagnosticModeState = async () => {
     await saveDiagnosticModeEnabled(this.state.diagnosticMode);
+  };
+
+  hydrateExternalSnippetSetting = async () => {
+    this.setState({
+      allowExternalSnippets: await getAllowExternalSnippets(),
+    });
   };
 
   appendDiagnosticLog = (entry) => {
@@ -157,6 +169,7 @@ class DevTools extends React.Component {
     }
 
     this.setState({
+      allowExternalSnippets: session.modes.allowExternalSnippets,
       capturePaused: session.modes.capturePaused,
       stack: session.stack,
       diagnosticLogs: session.diagnosticLogs,
@@ -170,7 +183,25 @@ class DevTools extends React.Component {
     this.removeStorageChangeListener = addStorageChangeListener(
       (changes, areaName) => {
         if (
-          areaName !== "local" ||
+          areaName !== "local"
+        ) {
+          return;
+        }
+
+        if (
+          Object.prototype.hasOwnProperty.call(
+            changes,
+            ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY
+          )
+        ) {
+          this.setState({
+            allowExternalSnippets: Boolean(
+              changes[ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY]?.newValue
+            ),
+          });
+        }
+
+        if (
           !Object.prototype.hasOwnProperty.call(
             changes,
             GRAPHXRAY_SESSION_STORAGE_KEY
@@ -188,6 +219,7 @@ class DevTools extends React.Component {
         }
 
         this.setState({
+          allowExternalSnippets: nextSession.modes.allowExternalSnippets,
           capturePaused: nextSession.modes.capturePaused,
           stack: nextSession.stack,
           diagnosticLogs: nextSession.diagnosticLogs,
@@ -204,6 +236,7 @@ class DevTools extends React.Component {
       stack: this.state.stack,
       diagnosticLogs: this.state.diagnosticLogs,
       modes: {
+        allowExternalSnippets: this.state.allowExternalSnippets,
         capturePaused: this.state.capturePaused,
         diagnosticMode: this.state.diagnosticMode,
         snippetLanguage: this.state.snippetLanguage,
@@ -300,21 +333,21 @@ class DevTools extends React.Component {
       try {
         await saveGraphXRaySession(this.buildCurrentSessionSnapshot());
       } catch (error) {
-        console.log("Could not persist Graph X-Ray session:", error);
+        warnLog("Could not persist Graph X-Ray session", error);
       }
     }, 150);
   };
 
   openDashboard = () => {
     openExtensionPage("dashboard.html").catch((error) => {
-      console.log("Could not open standalone dashboard:", error);
+      warnLog("Could not open standalone dashboard", error);
     });
   };
 
   saveScript = async () => {
     const script = getSaveScriptContentFromStack(this.state.stack);
     if (!script.trim()) {
-      console.warn("No generated code is available to save yet.");
+      warnLog("No generated code is available to save yet.");
       this.recordDiagnostic(
         "save_script_skipped",
         {
@@ -337,7 +370,7 @@ class DevTools extends React.Component {
   copyScript = () => {
     const script = getSaveScriptContentFromStack(this.state.stack);
     if (!script.trim()) {
-      console.warn("No generated code is available to copy yet.");
+      warnLog("No generated code is available to copy yet.");
       this.recordDiagnostic(
         "copy_script_skipped",
         {
@@ -356,7 +389,7 @@ class DevTools extends React.Component {
 
   saveLogs = () => {
     if (this.state.diagnosticLogs.length === 0) {
-      console.warn("No diagnostic logs are available to save yet.");
+      warnLog("No diagnostic logs are available to save yet.");
       return;
     }
 
@@ -395,8 +428,6 @@ class DevTools extends React.Component {
       return;
     }
     hostWebview.addEventListener("message", (event) => {
-      console.log("Got message from host!");
-      console.log(event.data);
       const msg = JSON.parse(event.data);
       if (msg.eventName === "GraphCall") {
         if (this.state.capturePaused) {
@@ -406,7 +437,6 @@ class DevTools extends React.Component {
           });
           return;
         }
-        console.log("Showing graph call.");
         this.recordDiagnostic("host_graph_call_received", {
           eventName: msg.eventName,
         });
@@ -416,17 +446,12 @@ class DevTools extends React.Component {
   }
 
   async addRequestToStack(request, version, harEntry = null) {
-    console.log(
-      "DevTools - addRequestToStack called with:",
-      request,
-      version,
-      harEntry
-    );
     this.recordDiagnostic("request_processing_started", {
       method: request.method,
       url: request.url,
       hasHarEntry: Boolean(harEntry),
       snippetLanguage: this.state.snippetLanguage,
+      allowExternalSnippets: this.state.allowExternalSnippets,
     });
 
     const requestKey = this.buildRequestStackKey(request, harEntry);
@@ -437,10 +462,12 @@ class DevTools extends React.Component {
         request,
         version,
         harEntry,
-        { preferLocalPowerShell: true },
+        {
+          preferLocalPowerShell: true,
+          allowExternalSnippets: this.state.allowExternalSnippets,
+        },
         this.recordDiagnosticEntry
       );
-      console.log("DevTools - local-first getCodeView returned:", localCodeView);
       if (!localCodeView) {
         this.recordDiagnostic(
           "request_processing_skipped",
@@ -492,10 +519,12 @@ class DevTools extends React.Component {
         request,
         version,
         harEntry,
-        { devxOnly: true },
+        {
+          devxOnly: true,
+          allowExternalSnippets: this.state.allowExternalSnippets,
+        },
         this.recordDiagnosticEntry
       );
-      console.log("DevTools - devx-only getCodeView returned:", upgradedCodeView);
 
       if (!upgradedCodeView) {
         this.recordDiagnostic("snippet_kept_local_after_devx_failure", {
@@ -555,9 +584,11 @@ class DevTools extends React.Component {
       request,
       version,
       harEntry,
+      {
+        allowExternalSnippets: this.state.allowExternalSnippets,
+      },
       this.recordDiagnosticEntry
     );
-    console.log("DevTools - getCodeView returned:", codeView);
     if (codeView) {
       await this.appendStackEntry({
         ...codeView,
@@ -617,19 +648,17 @@ class DevTools extends React.Component {
           try {
             this.showRequest(request, harEntry);
           } catch (error) {
-            console.log(error);
+            warnLog("Could not process captured request", error);
           }
         }
       } catch (error) {
-        console.log(error);
+        warnLog("Request finished handler failed", error);
       }
     });
   }
 
   async showRequest(request, harEntry = null) {
-    console.log("DevTools - showRequest called with:", request, harEntry);
     if (request.url.includes("/$batch")) {
-      console.log("Processing batch request - keeping as single unit");
       this.recordDiagnostic("batch_request_detected", {
         method: request.method,
         url: request.url,
@@ -701,6 +730,23 @@ class DevTools extends React.Component {
             ultraXRayMode: this.state.ultraXRayMode,
           }
         );
+      }
+    );
+  };
+
+  onAllowExternalSnippetsToggle = async (e, checked) => {
+    const nextValue = Boolean(checked);
+    await saveAllowExternalSnippets(nextValue);
+    this.setState(
+      {
+        allowExternalSnippets: nextValue,
+      },
+      () => {
+        this.scheduleSessionSync();
+        this.recordDiagnostic("external_snippets_setting_changed", {
+          enabled: nextValue,
+          snippetLanguage: this.state.snippetLanguage,
+        });
       }
     );
   };
@@ -786,6 +832,23 @@ class DevTools extends React.Component {
                 capture.
               </div>
             )}
+            {!this.state.allowExternalSnippets && (
+              <div
+                style={{
+                  borderLeft: "4px solid #2563eb",
+                  backgroundColor: "#eff6ff",
+                  color: "#1e3a8a",
+                  padding: "10px 12px",
+                  marginBottom: "14px",
+                  borderRadius: "6px",
+                }}
+              >
+                Local only mode is enabled. PowerShell stays local, and other
+                languages will not call the external DevX snippet service until
+                you enable external snippet generation in the Graph X-Ray
+                options page.
+              </div>
+            )}
             <div
               style={{
                 display: "flex",
@@ -802,6 +865,27 @@ class DevTools extends React.Component {
                 selectedKey={this.state.snippetLanguage}
                 onChange={this.onLanguageChange}
               />
+
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  marginBottom: "8px",
+                }}
+                >
+                <Toggle
+                  label="External snippets"
+                  checked={this.state.allowExternalSnippets}
+                  onChange={this.onAllowExternalSnippetsToggle}
+                  onText="On"
+                  offText="Local only"
+                  styles={{
+                    root: { marginBottom: 0 },
+                    label: { fontWeight: "600" },
+                  }}
+                />
+              </div>
 
               <div
                 style={{

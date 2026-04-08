@@ -1,8 +1,10 @@
 import { downloadFile as downloadExtensionFile } from "./extensionApi.js";
+import { warnLog } from "./security.js";
 
 const GRAPHXRAY_SESSION_STORAGE_KEY = "graphxraySession";
 
 const DEFAULT_SESSION_MODES = {
+  allowExternalSnippets: false,
   capturePaused: false,
   diagnosticMode: false,
   snippetLanguage: "powershell",
@@ -139,20 +141,15 @@ const downloadContentAsFile = async (
     }
 
     if (downloadResult?.status === "unsupported") {
-      console.log(
-        "downloads.download is not available, falling back to anchor click."
-      );
+      warnLog("downloads.download is not available, falling back to anchor click.");
     } else if (downloadResult?.status === "error") {
-      console.log(
-        "downloads.download failed, falling back to anchor click:",
+      warnLog(
+        "downloads.download failed, falling back to anchor click",
         downloadResult.error
       );
     }
   } catch (error) {
-    console.log(
-      "downloads.download failed, falling back to anchor click:",
-      error
-    );
+    warnLog("downloads.download failed, falling back to anchor click", error);
   }
 
   const element = document.createElement("a");

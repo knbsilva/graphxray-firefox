@@ -7,6 +7,7 @@ import {
   openExtensionPage,
   openExtensionOptionsPage,
 } from "../common/extensionApi.js";
+import { warnLog } from "../common/security.js";
 
 const styleBlue = {
   root: {
@@ -42,14 +43,14 @@ const overflowProps = {
 
 export const openOptionsPage = () => {
   openExtensionOptionsPage().catch((error) => {
-    console.log("Could not open options page:", error);
+    warnLog("Could not open options page", error);
     window.open(getExtensionUrl("options.html"));
   });
 };
 
 export const openDashboardPage = () => {
   openExtensionPage("dashboard.html").catch((error) => {
-    console.log("Could not open dashboard page:", error);
+    warnLog("Could not open dashboard page", error);
     window.open(getExtensionUrl("dashboard.html"));
   });
 };

@@ -26,6 +26,14 @@ export const GRAPH_DOMAINS = {
   ]
 };
 
+const getUrlOrigin = (url) => {
+  try {
+    return new URL(url).origin;
+  } catch (error) {
+    return null;
+  }
+};
+
 // Helper function to get all domains based on ultra mode setting
 export const getAllowedDomains = (ultraXRayMode = false) => {
   if (ultraXRayMode) {
@@ -37,12 +45,20 @@ export const getAllowedDomains = (ultraXRayMode = false) => {
 // Helper function to check if a URL matches any allowed domain
 export const isAllowedDomain = (url, ultraXRayMode = false) => {
   const allowedDomains = getAllowedDomains(ultraXRayMode);
-  return allowedDomains.some(domain => url.includes(domain));
+  const origin = getUrlOrigin(url);
+  if (!origin) {
+    return false;
+  }
+  return allowedDomains.includes(origin);
 };
 
 // Helper function to check if a URL is from an Ultra X-Ray domain
 export const isUltraXRayDomain = (url) => {
-  return GRAPH_DOMAINS.ULTRA_XRAY.some(domain => url.includes(domain));
+  const origin = getUrlOrigin(url);
+  if (!origin) {
+    return false;
+  }
+  return GRAPH_DOMAINS.ULTRA_XRAY.includes(origin);
 };
 
 // Helper function to get all domain URLs for webRequest (includes wildcards)
@@ -53,19 +69,16 @@ export const getAllDomainUrls = () => {
 
 // Helper function to parse domain from URL for host determination
 export const parseGraphUrl = (url) => {
-  let path = url;
-  let host = "graph.microsoft.com"; // default
-
-  // Check all known domains
-  const allDomains = [...GRAPH_DOMAINS.STANDARD, ...GRAPH_DOMAINS.ULTRA_XRAY];
-  
-  for (const domain of allDomains) {
-    if (url.includes(domain)) {
-      path = url.split(domain)[1];
-      host = domain.replace("https://", "");
-      break;
-    }
+  try {
+    const parsedUrl = new URL(url);
+    return {
+      path: `${parsedUrl.pathname}${parsedUrl.search}`,
+      host: parsedUrl.host,
+    };
+  } catch (error) {
+    return {
+      path: url,
+      host: "graph.microsoft.com",
+    };
   }
-
-  return { path, host };
 };

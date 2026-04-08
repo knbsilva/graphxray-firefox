@@ -17,6 +17,7 @@ import {
   extensionApi,
   sendRuntimeMessage,
 } from "../common/extensionApi.js";
+import { warnLog } from "../common/security.js";
 
 const REQUEST_BODY_TTL_MS = 30 * 1000;
 const REQUEST_BODY_CACHE_LIMIT = 50;
@@ -105,7 +106,7 @@ export async function init() {
         details,
       }),
     }).catch((error) => {
-      console.log("Could not send diagnostic log:", error);
+      warnLog("Could not send diagnostic log", error);
     });
   };
 
@@ -127,7 +128,7 @@ export async function init() {
     requestBodyWriteQueue = requestBodyWriteQueue
       .then(() => persistRequestBodiesSnapshot())
       .catch((error) => {
-        console.log("Could not persist request body cache:", error);
+        warnLog("Could not persist request body cache", error);
         emitDiagnosticLog("request_body_persist_failed", {
           error: error?.message || String(error),
         }, "error");
@@ -200,7 +201,6 @@ export async function init() {
   // Capture request bodies for Graph API calls
   extensionApi.webRequest.onBeforeRequest.addListener(
     function (details) {
-      console.log("Background - webRequest intercepted:", details.url, details.method);
       emitDiagnosticLog("web_request_intercepted", {
         url: details.url,
         method: details.method,
@@ -222,9 +222,7 @@ export async function init() {
           bodyData = JSON.stringify(details.requestBody.formData);
           requestBodySource = "formData";
         }
-        
-        console.log("Background - extracted body data:", bodyData);
-        
+
         if (bodyData) {
           persistRequestBody(
             details.url,
@@ -233,8 +231,6 @@ export async function init() {
             details.timeStamp || Date.now()
           );
 
-          console.log("Background - stored body for URL:", details.url);
-          console.log("Background - current stored bodies:", requestBodies.map((entry) => entry.url));
           emitDiagnosticLog("request_body_captured", {
             url: details.url,
             method: details.method,
@@ -253,14 +249,12 @@ export async function init() {
 
   // Send request body data to devtools when available
   addRuntimeMessageListener(async (request) => {
-    console.log("Background - received message:", request);
     if (request?.type === DIAGNOSTIC_LOG_MESSAGE_TYPE) {
       return null;
     }
 
     if (request.type === "GET_REQUEST_BODY" && request.url) {
       const body = await getRequestBodyFromCache(request);
-      console.log("Background - returning body for URL:", request.url, "body:", body);
       emitDiagnosticLog("request_body_lookup_completed", {
         url: request.url,
         method: request.method,

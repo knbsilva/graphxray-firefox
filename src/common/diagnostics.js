@@ -1,3 +1,5 @@
+import { redactSensitiveText, redactSensitiveValue } from "./security.js";
+
 export const DIAGNOSTIC_MODE_STORAGE_KEY = "graphxrayDiagnosticMode";
 export const DIAGNOSTIC_LOG_MESSAGE_TYPE = "DIAGNOSTIC_LOG";
 export const MAX_DIAGNOSTIC_LOG_ENTRIES = 500;
@@ -9,9 +11,9 @@ const stringifyDiagnosticValue = (value) => {
   }
 
   try {
-    return JSON.stringify(value, null, 2);
+    return JSON.stringify(redactSensitiveValue(value), null, 2);
   } catch (error) {
-    return String(value);
+    return String(redactSensitiveValue(value));
   }
 };
 
@@ -23,7 +25,7 @@ export const createDiagnosticPreview = (
     return value;
   }
 
-  const text = stringifyDiagnosticValue(value);
+  const text = redactSensitiveText(stringifyDiagnosticValue(value));
   if (text.length <= limit) {
     return text;
   }
@@ -41,5 +43,5 @@ export const buildDiagnosticEntry = ({
   source,
   event,
   level,
-  details,
+  details: redactSensitiveValue(details),
 });

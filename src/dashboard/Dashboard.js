@@ -19,8 +19,10 @@ import {
   MAX_DIAGNOSTIC_LOG_ENTRIES,
 } from "../common/diagnostics.js";
 import {
+  ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY,
   getGraphXRaySession,
   saveGraphXRaySession,
+  getAllowExternalSnippets,
 } from "../common/storage.js";
 import {
   buildDiagnosticExportPayload,
@@ -32,6 +34,7 @@ import {
   normalizeSessionState,
 } from "../common/session.js";
 import { getSnippetLanguageOption } from "../common/snippetLanguages.js";
+import { warnLog } from "../common/security.js";
 
 const theme = getTheme();
 const HTTP_METHOD_OPTIONS = ["GET", "POST", "PATCH", "PUT", "DELETE"].map(
@@ -87,6 +90,7 @@ class Dashboard extends React.Component {
 
   loadSession = async () => {
     const session = normalizeSessionState(await getGraphXRaySession());
+    session.modes.allowExternalSnippets = await getAllowExternalSnippets();
     this.setState((previousState) => {
       const previousVisibleEntries = this.getVisibleEntries(previousState.session);
       const nextVisibleEntries = this.getVisibleEntries(
@@ -110,21 +114,42 @@ class Dashboard extends React.Component {
   addSessionStorageListener = () => {
     this.removeStorageChangeListener = addStorageChangeListener(
       (changes, areaName) => {
-        if (
-          areaName !== "local" ||
-          !Object.prototype.hasOwnProperty.call(
-            changes,
-            GRAPHXRAY_SESSION_STORAGE_KEY
-          )
-        ) {
+        if (areaName !== "local") {
           return;
         }
 
-        const session = normalizeSessionState(
-          changes[GRAPHXRAY_SESSION_STORAGE_KEY]?.newValue
-        );
-
         this.setState((previousState) => {
+          const session = Object.prototype.hasOwnProperty.call(
+            changes,
+            GRAPHXRAY_SESSION_STORAGE_KEY
+          )
+            ? normalizeSessionState(changes[GRAPHXRAY_SESSION_STORAGE_KEY]?.newValue)
+            : normalizeSessionState(previousState.session);
+
+          if (
+            Object.prototype.hasOwnProperty.call(
+              changes,
+              ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY
+            )
+          ) {
+            session.modes.allowExternalSnippets = Boolean(
+              changes[ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY]?.newValue
+            );
+          }
+
+          if (
+            !Object.prototype.hasOwnProperty.call(
+              changes,
+              GRAPHXRAY_SESSION_STORAGE_KEY
+            ) &&
+            !Object.prototype.hasOwnProperty.call(
+              changes,
+              ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY
+            )
+          ) {
+            return null;
+          }
+
           const previousVisibleEntries = this.getVisibleEntries(previousState.session);
           const nextVisibleEntries = this.getVisibleEntries(
             session,
@@ -360,7 +385,7 @@ class Dashboard extends React.Component {
 
   openGuide = () => {
     openExtensionOptionsPage().catch((error) => {
-      console.log("Could not open Graph X-Ray guide:", error);
+      warnLog("Could not open Graph X-Ray guide", error);
     });
   };
 
@@ -501,6 +526,9 @@ class Dashboard extends React.Component {
                   </span>
                   <span className="DashboardMetaChip">
                     Capture: {session.modes.capturePaused ? "Paused" : "Running"}
+                  </span>
+                  <span className="DashboardMetaChip">
+                    External snippets: {session.modes.allowExternalSnippets ? "On" : "Off"}
                   </span>
                   <span className="DashboardMetaChip">
                     Updated: {formatTimestamp(session.updatedAt)}

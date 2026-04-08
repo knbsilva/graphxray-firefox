@@ -1,5 +1,6 @@
-const browserApi = typeof browser !== "undefined" ? browser : null;
+import { warnLog } from "./security.js";
 
+const browserApi = typeof browser !== "undefined" ? browser : null;
 const chromeApi = typeof chrome !== "undefined" ? chrome : null;
 
 const extensionApi = browserApi || chromeApi || null;
@@ -187,7 +188,7 @@ const openExtensionPage = async (path) => {
     try {
       return await createTab({ url });
     } catch (error) {
-      console.log("Could not create extension tab, falling back to window.open:", error);
+      warnLog("Could not create extension tab, falling back to window.open", error);
     }
   }
 
@@ -228,7 +229,7 @@ const addRuntimeMessageListener = (listener) => {
         sendResponse(response);
       })
       .catch((error) => {
-        console.log("Runtime message handler failed:", error);
+        warnLog("Runtime message handler failed", error);
         sendResponse({
           error: error?.message || String(error),
         });

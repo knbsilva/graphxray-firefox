@@ -2,8 +2,12 @@ import React from "react";
 import "./Options.css";
 import { AppHeader } from "../components/AppHeader";
 import { FontSizes } from "@fluentui/theme";
-import { getTheme } from "@fluentui/react";
+import { getTheme, MessageBar, MessageBarType, Toggle } from "@fluentui/react";
 import { isFirefoxBrowser } from "../common/extensionApi.js";
+import {
+  getAllowExternalSnippets,
+  saveAllowExternalSnippets,
+} from "../common/storage.js";
 
 const theme = getTheme();
 class Options extends React.Component {
@@ -13,8 +17,23 @@ class Options extends React.Component {
       message: "",
       isActive: false,
       stack: [],
+      allowExternalSnippets: false,
     };
   }
+
+  async componentDidMount() {
+    this.setState({
+      allowExternalSnippets: await getAllowExternalSnippets(),
+    });
+  }
+
+  onAllowExternalSnippetsChange = async (_, checked) => {
+    const enabled = Boolean(checked);
+    await saveAllowExternalSnippets(enabled);
+    this.setState({
+      allowExternalSnippets: enabled,
+    });
+  };
 
   render() {
     const showFirefoxNote = isFirefoxBrowser();
@@ -42,6 +61,38 @@ class Options extends React.Component {
                 Use Graph X-Ray in Firefox to capture Microsoft Graph requests
                 while you work in portals such as Entra and Intune.
               </p>
+              <MessageBar
+                messageBarType={MessageBarType.warning}
+                styles={{ root: { marginBottom: "16px" } }}
+              >
+                Graph X-Ray can capture sensitive administrative requests,
+                responses, and generated snippets. Treat exports and diagnostic
+                logs as sensitive data.
+              </MessageBar>
+              <div
+                style={{
+                  boxShadow: theme.effects.elevation4,
+                  padding: "16px",
+                  marginBottom: "20px",
+                  borderRadius: "8px",
+                }}
+              >
+                <h3 style={{ marginTop: 0 }}>Snippet generation mode</h3>
+                <Toggle
+                  label="Allow external snippet generation"
+                  checked={this.state.allowExternalSnippets}
+                  onChange={this.onAllowExternalSnippetsChange}
+                  onText="Enabled"
+                  offText="Local only"
+                />
+                <p style={{ marginBottom: 0, color: "#475569" }}>
+                  When enabled, Graph X-Ray can send captured request payloads
+                  to the Microsoft Graph DevX snippet service for languages that
+                  do not have a local generator. When disabled, PowerShell stays
+                  local and other languages fail closed without external
+                  submission.
+                </p>
+              </div>
               <ul>
                 <li>
                   Open a Microsoft admin portal page in Firefox.
@@ -65,6 +116,10 @@ class Options extends React.Component {
                 <li>
                   Optional: use <b>Open dashboard</b> to review the same
                   captured session outside Developer Tools.
+                </li>
+                <li>
+                  Use <b>Local only</b> mode if you do not want captured request
+                  payloads sent to the external DevX snippet service.
                 </li>
               </ul>
             </div>

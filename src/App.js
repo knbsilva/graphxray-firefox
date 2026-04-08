@@ -14,6 +14,7 @@ import {
   isFirefoxBrowser,
   sendRuntimeMessage,
 } from "./common/extensionApi.js";
+import { debugLog, warnLog } from "./common/security.js";
 import {
   openDashboardPage,
   openOptionsPage,
@@ -82,8 +83,7 @@ class App extends React.Component {
       return;
     }
     hostWebview.addEventListener("message", (event) => {
-      console.log("Got message from host!");
-      console.log(event.data);
+      debugLog("Got message from host", event.data);
     });
   }
 
@@ -94,13 +94,9 @@ class App extends React.Component {
       sendRuntimeMessage({
         method: "start",
       })
-        .then((response) => {
-          if (response?.farewell) {
-            console.log(response.farewell);
-          }
-        })
+        .then(() => null)
         .catch((error) => {
-          console.log("Could not send start message:", error);
+          warnLog("Could not send start message", error);
         });
 
       saveObjectInLocalStorage({
@@ -111,7 +107,7 @@ class App extends React.Component {
       sendRuntimeMessage({
         method: "stop",
       }).catch((error) => {
-        console.log("Could not send stop message:", error);
+        warnLog("Could not send stop message", error);
       });
       saveObjectInLocalStorage({
         isActive: this.state.isActive,

@@ -1,6 +1,8 @@
 import { GRAPH_DOMAINS, isUltraXRayDomain } from "./domains.js";
 import { createDiagnosticPreview } from "./diagnostics.js";
 import { sendRuntimeMessage } from "./extensionApi.js";
+import { getAllowExternalSnippets } from "./storage.js";
+import { debugLog, errorLog, warnLog } from "./security.js";
 
 const devxEndPoint =
   "https://devxapi-func-prod-eastus.azurewebsites.net/api/graphexplorersnippets";
@@ -55,7 +57,7 @@ const normalizePathSegmentForDevX = (segment) => {
   try {
     identifier = decodeURIComponent(identifier);
   } catch (error) {
-    console.log("Could not decode OData identifier:", identifier, error);
+    debugLog("Could not decode OData identifier", { identifier, error });
   }
 
   return [collection, encodeURIComponent(identifier)];
@@ -271,6 +273,14 @@ const resolveSnippetInvocationArgs = (optionsOrLogger, maybeLogger) => {
   };
 };
 
+const resolveAllowExternalSnippets = async (options = {}) => {
+  if (typeof options.allowExternalSnippets === "boolean") {
+    return options.allowExternalSnippets;
+  }
+
+  return getAllowExternalSnippets();
+};
+
 const getPowershellCmd = async function (
   snippetLanguage,
   method,
@@ -283,11 +293,10 @@ const getPowershellCmd = async function (
     optionsOrLogger,
     maybeLogger
   );
-  console.log("Get code snippet from DevX:", url, method);
+  const allowExternalSnippets = await resolveAllowExternalSnippets(options);
   
   // Check if the URL is from an Ultra X-Ray domain - if so, don't call devx
   if (isUltraXRayDomain(url)) {
-    console.log("Skipping DevX call for Ultra X-Ray domain:", url);
     emitDiagnosticLog(diagnosticLogger, "devx_skipped_ultra_xray", {
       snippetLanguage,
       method,
@@ -316,13 +325,42 @@ const getPowershellCmd = async function (
     };
   }
 
+  if (!allowExternalSnippets) {
+    emitDiagnosticLog(diagnosticLogger, "devx_blocked_local_only", {
+      snippetLanguage,
+      method,
+      url,
+    });
+
+    if (snippetLanguage === "powershell") {
+      const localCode = buildFallbackSnippet(
+        snippetLanguage,
+        method,
+        url,
+        bodyText,
+        options
+      );
+      return {
+        code: localCode,
+        error: null,
+        source: localCode ? "local" : "none",
+      };
+    }
+
+    return {
+      code: null,
+      error:
+        "External snippet generation is disabled in Local only mode for this language.",
+      source: "none",
+    };
+  }
+
   const { host, path, normalizedUrl } = normalizeGraphRequestUrlForDevX(url);
   let payloadHeaders = `Host: ${host}\r\nContent-Type: application/json`;
   if (method.toUpperCase() === "GET" && options.includeConsistencyLevelHeader) {
     payloadHeaders += "\r\nConsistencyLevel: eventual";
   }
   const payload = `${method} ${path} HTTP/1.1\r\n${payloadHeaders}\r\n\r\n${bodyText}`;
-  console.log("Payload:", payload);
 
   const snippetParam = "?lang=%snippetLanguage%".replace(
     "%snippetLanguage%",
@@ -357,10 +395,8 @@ const getPowershellCmd = async function (
       method: "POST",
       body: payload,
     });
-    console.log("DevX responded");
     if (response.ok) {
       const responseText = await response.text();
-      console.log("DevX-Response", responseText);
       emitDiagnosticLog(diagnosticLogger, "devx_request_succeeded", {
         snippetLanguage,
         method,
@@ -380,7 +416,7 @@ const getPowershellCmd = async function (
     } else {
       const errorText = await response.text();
       const errorMsg = `DevXError: ${response.status} ${response.statusText} for ${method} ${url} - Response: ${errorText}`;
-      console.log(errorMsg);
+      warnLog(errorMsg);
       const fallbackCode = buildFallbackSnippet(
         snippetLanguage,
         method,
@@ -431,7 +467,7 @@ const getPowershellCmd = async function (
     const errorMsg = `DevXError: Network/Request error for ${method} ${url} - ${
       error.message || error
     }`;
-    console.log(errorMsg, error);
+    errorLog(errorMsg, error);
     const fallbackCode = buildFallbackSnippet(
       snippetLanguage,
       method,
@@ -481,11 +517,7 @@ const getPowershellCmd = async function (
 const getRequestBody = async function (request, diagnosticLogger = null) {
   let requestBody = "";
   const method = String(request.method || "").toUpperCase();
-  
-  console.log("getRequestBody - request object:", request);
-  console.log("getRequestBody - request.method:", request.method);
-  console.log("getRequestBody - request.url:", request.url);
-  
+
   // First, check if the request object directly has a body property (seems to be the case!)
   if (request.body) {
     if (typeof request.body === 'string') {
@@ -493,7 +525,6 @@ const getRequestBody = async function (request, diagnosticLogger = null) {
     } else {
       requestBody = JSON.stringify(request.body);
     }
-    console.log("getRequestBody - found body in request.body:", requestBody);
     emitDiagnosticLog(diagnosticLogger, "request_body_resolved", {
       url: request.url,
       method: request.method,
@@ -507,7 +538,6 @@ const getRequestBody = async function (request, diagnosticLogger = null) {
   // Second, try to get from the standard devtools API (limited access)
   if (request.postData && request.postData.text) {
     requestBody = request.postData.text;
-    console.log("getRequestBody - found body in postData:", requestBody);
     emitDiagnosticLog(diagnosticLogger, "request_body_resolved", {
       url: request.url,
       method: request.method,
@@ -519,16 +549,11 @@ const getRequestBody = async function (request, diagnosticLogger = null) {
   }
 
   if (!requestMethodSupportsBody(method)) {
-    console.log(
-      "getRequestBody - skipping body lookup for method without expected payload:",
-      method
-    );
     return "";
   }
   
   // If no body found, try to get from background script using URL
   if (!requestBody && request.url) {
-    console.log("getRequestBody - trying background script with URL:", request.url);
     try {
       const startedDateTime = request._harEntry?.startedDateTime;
       const urlsToTry = buildRequestBodyLookupUrls(request.url);
@@ -540,10 +565,8 @@ const getRequestBody = async function (request, diagnosticLogger = null) {
           method: request.method,
           startedDateTime: startedDateTime,
         });
-        console.log("getRequestBody - background script response for", url, ":", response);
         if (response && response.body) {
           requestBody = response.body;
-          console.log("getRequestBody - found body from background script:", requestBody);
           emitDiagnosticLog(diagnosticLogger, "request_body_resolved", {
             url: request.url,
             method: request.method,
@@ -556,7 +579,7 @@ const getRequestBody = async function (request, diagnosticLogger = null) {
         }
       }
     } catch (error) {
-      console.log("Could not get request body from background script:", error);
+      warnLog("Could not get request body from background script", error);
       emitDiagnosticLog(
         diagnosticLogger,
         "request_body_lookup_failed",
@@ -569,8 +592,6 @@ const getRequestBody = async function (request, diagnosticLogger = null) {
       );
     }
   }
-  
-  console.log("getRequestBody - final result (should only be REQUEST body):", requestBody);
   emitDiagnosticLog(
     diagnosticLogger,
     "request_body_missing",
@@ -585,34 +606,23 @@ const getRequestBody = async function (request, diagnosticLogger = null) {
 
 const getResponseContent = async function (harEntry, diagnosticLogger = null) {
   let responseContent = "";
-  
-  console.log("getResponseContent - harEntry:", harEntry);
-  console.log("getResponseContent - harEntry type:", typeof harEntry);
-  
+
   // Try to get response content from harEntry
   if (harEntry && harEntry.response) {
-    console.log("getResponseContent - response object:", harEntry.response);
-    console.log("getResponseContent - response status:", harEntry.response.status);
-    console.log("getResponseContent - response headers:", harEntry.response.headers);
-    console.log("getResponseContent - response content object:", harEntry.response.content);
-    
     // Check if response has content directly in the content.text property
     if (harEntry.response.content && harEntry.response.content.text !== undefined) {
       responseContent = harEntry.response.content.text;
-      console.log("getResponseContent - raw content.text:", responseContent, "length:", responseContent.length);
       
       // If it's base64 encoded, decode it
       if (harEntry.response.content.encoding === 'base64') {
         try {
           responseContent = atob(harEntry.response.content.text);
-          console.log("getResponseContent - decoded base64 content:", responseContent);
         } catch (e) {
-          console.log("Failed to decode base64 content:", e);
+          warnLog("Failed to decode base64 response content", e);
           // Keep the original text if decoding fails
         }
       }
       
-      console.log("getResponseContent - found content in response.content.text:", responseContent);
       if (responseContent && responseContent.length > 0) {
         emitDiagnosticLog(diagnosticLogger, "response_content_resolved", {
           source: "harEntry.response.content.text",
@@ -626,13 +636,10 @@ const getResponseContent = async function (harEntry, diagnosticLogger = null) {
     
     // Try using getResponseBody() method if available (this is different from getContent)
     if (typeof harEntry.getResponseBody === 'function') {
-      console.log("getResponseContent - trying getResponseBody() method");
       try {
         const { content, meta } = await getHarEntryResponseBody(harEntry);
-        console.log("getResponseContent - getResponseBody returned:", content, meta);
         if (content) {
           responseContent = content;
-          console.log("getResponseContent - found content from getResponseBody:", responseContent);
           emitDiagnosticLog(diagnosticLogger, "response_content_resolved", {
             source: "harEntry.getResponseBody",
             status: harEntry.response.status,
@@ -643,7 +650,7 @@ const getResponseContent = async function (harEntry, diagnosticLogger = null) {
           return responseContent;
         }
       } catch (error) {
-        console.log("getResponseContent - getResponseBody failed:", error);
+        warnLog("getResponseBody failed", error);
         emitDiagnosticLog(
           diagnosticLogger,
           "response_content_lookup_failed",
@@ -659,13 +666,10 @@ const getResponseContent = async function (harEntry, diagnosticLogger = null) {
     
     // Try using getContent() method which should get the response content for completed requests
     if (typeof harEntry.getContent === 'function') {
-      console.log("getResponseContent - trying getContent() method for response content");
       try {
         const { content, meta } = await getHarEntryContent(harEntry);
-        console.log("getResponseContent - getContent returned:", content, "meta:", meta, "content length:", content ? content.length : 0);
         if (content && content.length > 0) {
           responseContent = content;
-          console.log("getResponseContent - found content from getContent:", responseContent.substring(0, 200) + "...");
           emitDiagnosticLog(diagnosticLogger, "response_content_resolved", {
             source: "harEntry.getContent",
             status: harEntry.response.status,
@@ -676,7 +680,7 @@ const getResponseContent = async function (harEntry, diagnosticLogger = null) {
           return responseContent;
         }
       } catch (error) {
-        console.log("getResponseContent - getContent failed:", error);
+        warnLog("getContent failed", error);
         emitDiagnosticLog(
           diagnosticLogger,
           "response_content_lookup_failed",
@@ -691,16 +695,7 @@ const getResponseContent = async function (harEntry, diagnosticLogger = null) {
     }
     
     // Final attempt: check if there's any content object with size > 0
-    if (harEntry.response.content && harEntry.response.content.size > 0) {
-      console.log("getResponseContent - response has content with size:", harEntry.response.content.size);
-      // Sometimes the content is there but text property is empty string
-      if (harEntry.response.content.text === "") {
-        console.log("getResponseContent - content.text is empty string but size > 0, this might be an issue with content retrieval");
-      }
-    }
   }
-  
-  console.log("getResponseContent - final result:", responseContent);
   emitDiagnosticLog(
     diagnosticLogger,
     "response_content_missing",
@@ -775,8 +770,6 @@ const getBatchCodeSnippets = async function (
   options = {},
   diagnosticLogger = null
 ) {
-  console.log("Generating code snippets for batch request");
-  
   if (!requestBody) {
     emitDiagnosticLog(
       diagnosticLogger,
@@ -815,8 +808,6 @@ const getBatchCodeSnippets = async function (
     });
     
     for (const request of batchData.requests) {
-      console.log("Generating snippet for batch request:", request.id, request.method, request.url);
-      
       // Construct full URL for the individual request
       const fullUrl = `${baseUrl}${request.url}`;
       
@@ -847,8 +838,6 @@ const getBatchCodeSnippets = async function (
         });
       }
     }
-    
-    console.log("Generated", codeSnippets.length, "code snippets for batch request");
     emitDiagnosticLog(diagnosticLogger, "batch_snippets_completed", {
       snippetLanguage,
       baseUrl,
@@ -856,7 +845,7 @@ const getBatchCodeSnippets = async function (
     });
     return codeSnippets;
   } catch (error) {
-    console.log("Error generating batch code snippets:", error);
+    errorLog("Error generating batch code snippets", error);
     emitDiagnosticLog(
       diagnosticLogger,
       "batch_snippets_failed",
@@ -905,7 +894,6 @@ const getCodeView = async function (
     });
     return null;
   }
-  console.log("GetCodeView", snippetLanguage, request, harEntry);
   emitDiagnosticLog(diagnosticLogger, "code_view_started", {
     snippetLanguage,
     method: request.method,
@@ -927,7 +915,6 @@ const getCodeView = async function (
   
   // Check if this is a batch request
   if (request.url.includes("/$batch")) {
-    console.log("Processing batch request for code generation");
     // Extract base URL for batch requests
     const baseUrl = request.url.split("/$batch")[0];
     batchCodeSnippets = await getBatchCodeSnippets(
@@ -974,7 +961,6 @@ const getCodeView = async function (
     codeSource: codeSource,
     batchCodeSnippets: batchCodeSnippets, // Add batch code snippets to the result
   };
-  console.log("CodeView", codeView);
   emitDiagnosticLog(diagnosticLogger, "code_view_completed", {
     snippetLanguage,
     method: request.method,
