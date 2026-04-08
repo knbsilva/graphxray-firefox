@@ -6,8 +6,11 @@ import { getTheme, MessageBar, MessageBarType, Toggle } from "@fluentui/react";
 import { isFirefoxBrowser } from "../common/extensionApi.js";
 import {
   getAllowExternalSnippets,
+  getSensitiveCaptureConsentAccepted,
   saveAllowExternalSnippets,
+  saveSensitiveCaptureConsentAccepted,
 } from "../common/storage.js";
+import { PrimaryButton } from "@fluentui/react/lib/Button";
 
 const theme = getTheme();
 class Options extends React.Component {
@@ -18,12 +21,14 @@ class Options extends React.Component {
       isActive: false,
       stack: [],
       allowExternalSnippets: false,
+      captureConsentAccepted: false,
     };
   }
 
   async componentDidMount() {
     this.setState({
       allowExternalSnippets: await getAllowExternalSnippets(),
+      captureConsentAccepted: await getSensitiveCaptureConsentAccepted(),
     });
   }
 
@@ -32,6 +37,13 @@ class Options extends React.Component {
     await saveAllowExternalSnippets(enabled);
     this.setState({
       allowExternalSnippets: enabled,
+    });
+  };
+
+  acknowledgeCaptureConsent = async () => {
+    await saveSensitiveCaptureConsentAccepted(true);
+    this.setState({
+      captureConsentAccepted: true,
     });
   };
 
@@ -69,6 +81,28 @@ class Options extends React.Component {
                 responses, and generated snippets. Treat exports and diagnostic
                 logs as sensitive data.
               </MessageBar>
+              {!this.state.captureConsentAccepted && (
+                <div
+                  style={{
+                    boxShadow: theme.effects.elevation4,
+                    padding: "16px",
+                    marginBottom: "20px",
+                    borderRadius: "8px",
+                    border: "1px solid #f59e0b",
+                    backgroundColor: "#fffbeb",
+                  }}
+                >
+                  <h3 style={{ marginTop: 0 }}>First-use consent</h3>
+                  <p>
+                    Before using Graph X-Ray to capture Microsoft 365
+                    administrative traffic, confirm that you understand it can
+                    store and export sensitive API data locally.
+                  </p>
+                  <PrimaryButton onClick={this.acknowledgeCaptureConsent}>
+                    I understand and want to enable capture
+                  </PrimaryButton>
+                </div>
+              )}
               <div
                 style={{
                   boxShadow: theme.effects.elevation4,

@@ -13,6 +13,7 @@ import {
 
 const REQUEST_BODIES_STORAGE_KEY = "requestBodiesCache";
 const ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY = "graphxrayAllowExternalSnippets";
+const SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY = "graphxraySensitiveCaptureConsent";
 const LEGACY_EXTENSION_STATE = {
   currentMetrics: {
     urls: [],
@@ -63,6 +64,12 @@ const getAllowExternalSnippets = async () =>
 const saveAllowExternalSnippets = async (enabled) =>
   await saveObjectInLocalStorage({
     [ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY]: Boolean(enabled),
+  });
+const getSensitiveCaptureConsentAccepted = async () =>
+  Boolean(await getObjectFromLocalStorage(SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY));
+const saveSensitiveCaptureConsentAccepted = async (accepted) =>
+  await saveObjectInLocalStorage({
+    [SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY]: Boolean(accepted),
   });
 const getGraphXRaySession = async () => {
   const rawSession = await getObjectFromLocalStorage(GRAPHXRAY_SESSION_STORAGE_KEY);
@@ -142,6 +149,7 @@ const addKeystrokes = async (i = 1) => {
 
 export {
   ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY,
+  SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY,
   getObjectFromLocalStorage,
   saveObjectInLocalStorage,
   commitIfActive,
@@ -155,6 +163,8 @@ export {
   saveDiagnosticModeEnabled,
   getAllowExternalSnippets,
   saveAllowExternalSnippets,
+  getSensitiveCaptureConsentAccepted,
+  saveSensitiveCaptureConsentAccepted,
   getGraphXRaySession,
   saveGraphXRaySession,
   clearGraphXRaySession,

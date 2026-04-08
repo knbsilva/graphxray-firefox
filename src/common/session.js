@@ -6,6 +6,7 @@ const DEFAULT_SESSION_RETENTION_MS = 60 * 60 * 1000;
 
 const DEFAULT_SESSION_MODES = {
   allowExternalSnippets: false,
+  captureConsentAccepted: false,
   capturePaused: false,
   diagnosticMode: false,
   snippetLanguage: "powershell",
