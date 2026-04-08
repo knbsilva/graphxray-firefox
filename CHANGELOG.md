@@ -138,3 +138,5 @@
 - Added a shared export sanitization mode (`raw`, `redacted`, `summary`) in the options page and synchronized it across DevTools and the standalone dashboard.
 - Applied export sanitization to request, response, snippet, script, and diagnostic exports, with `redacted` as the secure default.
 - Rejected untrusted runtime message senders and hardened host/webview message parsing so malformed or spoofed payloads are ignored instead of being processed directly.
+- Added package-time validation to block suspicious capture artifacts such as `GraphXRay*` exports, `.har` files, or local capture folders from entering Firefox release bundles.
+- Replaced the developer-local Jest runner path with a repo-relative path to remove machine-specific metadata from `package.json`.

@@ -5,6 +5,7 @@ const path = require('path');
 const { copyFileSync } = require('fs');
 const { spawnSync } = require('child_process');
 const { syncManifestVersion } = require('./syncManifestVersion');
+const { validatePackageContents } = require('./validatePackageContents');
 
 const projectRoot = path.resolve(__dirname, '..');
 const buildOutputRoot = path.join(projectRoot, 'build');
@@ -23,6 +24,7 @@ fs.mkdirSync(packagesDir, { recursive: true });
 clearPackagesDirectory();
 
 buildTarget('firefox');
+validatePackageContents(path.join(buildOutputRoot, 'firefox'));
 packageFirefox(version);
 
 console.log(`Created packaged artifacts in ${path.relative(projectRoot, packagesDir)}.`);
