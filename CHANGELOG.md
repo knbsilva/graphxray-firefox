@@ -126,3 +126,11 @@
 - Added confirmation prompts for request, response, and diagnostic log exports because those files can contain sensitive administrative data.
 - Added visible sensitive-data labels on request and response panels before individual exports.
 - Added a default local session retention TTL of roughly 60 minutes and purge-on-read behavior for expired persisted sessions.
+
+### Security Phase 3
+
+- Added explicit first-use consent storage and UI so Graph X-Ray blocks new captures until the user acknowledges that sensitive Microsoft 365 API data can be stored and exported locally.
+- Propagated the capture-consent state across the options page, DevTools panel, standalone dashboard, and persisted session snapshot.
+- Reset the persisted consent acknowledgement as part of `Clear local cache` so capture does not silently restart after a local purge.
+- Hardened the GitHub Actions workflow with explicit `contents: write` permissions, concurrency control, and `npm ci` for deterministic dependency installation.
+- Added a basic `Dependabot` configuration for npm packages and GitHub Actions updates.

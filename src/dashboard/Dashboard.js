@@ -20,10 +20,13 @@ import {
 } from "../common/diagnostics.js";
 import {
   ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY,
+  SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY,
   clearGraphXRayLocalData,
   getGraphXRaySession,
+  getSensitiveCaptureConsentAccepted,
   saveGraphXRaySession,
   getAllowExternalSnippets,
+  saveSensitiveCaptureConsentAccepted,
 } from "../common/storage.js";
 import {
   buildDiagnosticExportPayload,
@@ -92,6 +95,8 @@ class Dashboard extends React.Component {
   loadSession = async () => {
     const session = normalizeSessionState(await getGraphXRaySession());
     session.modes.allowExternalSnippets = await getAllowExternalSnippets();
+    session.modes.captureConsentAccepted =
+      await getSensitiveCaptureConsentAccepted();
     this.setState((previousState) => {
       const previousVisibleEntries = this.getVisibleEntries(previousState.session);
       const nextVisibleEntries = this.getVisibleEntries(
@@ -139,6 +144,17 @@ class Dashboard extends React.Component {
           }
 
           if (
+            Object.prototype.hasOwnProperty.call(
+              changes,
+              SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY
+            )
+          ) {
+            session.modes.captureConsentAccepted = Boolean(
+              changes[SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY]?.newValue
+            );
+          }
+
+          if (
             !Object.prototype.hasOwnProperty.call(
               changes,
               GRAPHXRAY_SESSION_STORAGE_KEY
@@ -146,6 +162,10 @@ class Dashboard extends React.Component {
             !Object.prototype.hasOwnProperty.call(
               changes,
               ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY
+            ) &&
+            !Object.prototype.hasOwnProperty.call(
+              changes,
+              SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY
             )
           ) {
             return null;
@@ -351,7 +371,39 @@ class Dashboard extends React.Component {
     const nextSession = buildSessionSnapshot({
       stack: [],
       diagnosticLogs: [],
-      modes: this.state.session.modes,
+      modes: {
+        ...this.state.session.modes,
+        captureConsentAccepted: false,
+      },
+      sourceContext: "dashboard",
+    });
+    await saveGraphXRaySession(nextSession);
+  };
+
+  acknowledgeCaptureConsent = async () => {
+    await saveSensitiveCaptureConsentAccepted(true);
+    const nextDiagnosticLogs = this.state.session.modes.diagnosticMode
+      ? [
+          ...this.state.session.diagnosticLogs,
+          buildDiagnosticEntry({
+            source: "dashboard",
+            event: "capture_consent_acknowledged",
+            level: "info",
+            details: {
+              snippetLanguage: this.state.session.modes.snippetLanguage,
+              ultraXRayMode: this.state.session.modes.ultraXRayMode,
+            },
+          }),
+        ].slice(-MAX_DIAGNOSTIC_LOG_ENTRIES)
+      : this.state.session.diagnosticLogs;
+
+    const nextSession = buildSessionSnapshot({
+      stack: this.state.session.stack,
+      diagnosticLogs: nextDiagnosticLogs,
+      modes: {
+        ...this.state.session.modes,
+        captureConsentAccepted: true,
+      },
       sourceContext: "dashboard",
     });
     await saveGraphXRaySession(nextSession);
@@ -553,6 +605,9 @@ class Dashboard extends React.Component {
                     External snippets: {session.modes.allowExternalSnippets ? "On" : "Off"}
                   </span>
                   <span className="DashboardMetaChip">
+                    Consent: {session.modes.captureConsentAccepted ? "Accepted" : "Required"}
+                  </span>
+                  <span className="DashboardMetaChip">
                     Updated: {formatTimestamp(session.updatedAt)}
                   </span>
                 </div>
@@ -599,6 +654,34 @@ class Dashboard extends React.Component {
               </div>
             </div>
           </div>
+
+          {!session.modes.captureConsentAccepted && (
+            <div
+              className="DashboardCard"
+              style={{ boxShadow: theme.effects.elevation16, marginBottom: "24px" }}
+            >
+              <div className="DashboardCardInner">
+                <div
+                  style={{
+                    borderLeft: "4px solid #d97706",
+                    backgroundColor: "#fffbeb",
+                    color: "#7c2d12",
+                    padding: "12px 14px",
+                    borderRadius: "8px",
+                  }}
+                >
+                  <div style={{ marginBottom: "10px" }}>
+                    Capture is blocked until you acknowledge that Graph X-Ray can
+                    store and export sensitive Microsoft 365 administrative API
+                    data locally.
+                  </div>
+                  <PrimaryButton onClick={this.acknowledgeCaptureConsent}>
+                    I understand and want to enable capture
+                  </PrimaryButton>
+                </div>
+              </div>
+            </div>
+          )}
 
           {!hasEntries && !isLoading && this.renderEmptySession()}
 

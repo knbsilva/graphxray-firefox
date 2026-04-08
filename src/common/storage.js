@@ -92,6 +92,7 @@ const clearGraphXRaySession = async () =>
 const clearGraphXRayLocalData = async () => {
   await saveObjectInLocalStorage({
     ...LEGACY_EXTENSION_STATE,
+    [SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY]: false,
     [GRAPHXRAY_SESSION_STORAGE_KEY]: createEmptySessionState(),
   });
 

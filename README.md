@@ -99,6 +99,7 @@ To view Graph calls in real-time:
 Notes:
 
 - Graph X-Ray currently depends on Firefox DevTools network capture. Keep Developer Tools open while capturing.
+- First-use consent is required before Graph X-Ray starts appending new captured entries.
 - External snippet generation is opt-in. Local only mode prevents request payloads from being sent to the Microsoft Graph DevX snippet service.
 - Snippet generation quality depends on endpoint coverage in the Microsoft Graph snippet service when external snippets are enabled.
 - For PowerShell, this fork renders a local `Invoke-MgGraphRequest` snippet immediately and only upgrades it if DevX later returns a valid snippet.
@@ -134,7 +135,7 @@ You can also click **Open dashboard** from the Graph X-Ray panel or extension po
 ### Pre-requisites
 
 - Install [Node.js](https://nodejs.org/) (which includes npm)
-- Run `npm install` to install dependencies
+- Run `npm ci` to install dependencies
 
 ### Build the extension
 
@@ -188,6 +189,7 @@ This is the folder you should use for temporary loading in Firefox when you want
 ## Privacy and Data Handling
 
 - Graph X-Ray can capture sensitive Microsoft 365 administrative request bodies, response bodies, and generated snippets.
+- A first-use consent acknowledgement is required before new captures are appended.
 - Diagnostic exports can contain redacted troubleshooting data, but should still be treated as sensitive.
 - In `Local only` mode, Graph X-Ray does not submit captured request payloads to the external DevX snippet service.
 - If you enable external snippets, request payload content for supported languages can be sent to the DevX endpoint for snippet generation.
@@ -200,6 +202,7 @@ This is the folder you should use for temporary loading in Firefox when you want
 - `Save logs` exports the diagnostic session when Diagnostic Mode is enabled and asks for confirmation because the file can contain sensitive administrative data.
 - `Pause capture` / `Resume capture` controls whether new requests are appended while keeping the current session available for review and export.
 - `Clear local cache` clears the current session plus local request-body correlation cache and legacy local capture state.
+- `Clear local cache` also resets the first-use consent acknowledgement so capture stays blocked until you acknowledge it again.
 - Persisted session state is automatically purged after roughly 60 minutes of inactivity.
 - Individual entries can export:
   - `Request` when a request body exists, with a confirmation prompt

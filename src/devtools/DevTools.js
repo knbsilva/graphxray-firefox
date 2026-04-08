@@ -8,7 +8,7 @@ import { getCodeView } from "../common/client.js";
 import { isAllowedDomain } from "../common/domains.js";
 import { Dropdown } from "@fluentui/react/lib/Dropdown";
 import { Toggle } from "@fluentui/react/lib/Toggle";
-import { IconButton } from "@fluentui/react/lib/Button";
+import { IconButton, PrimaryButton } from "@fluentui/react/lib/Button";
 import { TooltipHost } from "@fluentui/react/lib/Tooltip";
 import DevToolsCommandBar from "../components/DevToolsCommandBar";
 import { Layer } from "@fluentui/react/lib/Layer";
@@ -22,12 +22,15 @@ import {
 } from "../common/extensionApi.js";
 import {
   ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY,
+  SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY,
   getAllowExternalSnippets,
   getGraphXRaySession,
+  getSensitiveCaptureConsentAccepted,
   clearGraphXRayLocalData,
   saveAllowExternalSnippets,
   saveDiagnosticModeEnabled,
   saveGraphXRaySession,
+  saveSensitiveCaptureConsentAccepted,
 } from "../common/storage.js";
 import {
   buildDiagnosticEntry,
@@ -71,6 +74,7 @@ class DevTools extends React.Component {
 
     this.state = {
       allowExternalSnippets: false,
+      captureConsentAccepted: false,
       capturePaused: false,
       stack: [],
       diagnosticLogs: [],
@@ -84,6 +88,7 @@ class DevTools extends React.Component {
 
   componentDidMount() {
     this.hydrateSessionFromStorage();
+    this.hydrateCaptureConsent();
     this.hydrateExternalSnippetSetting();
     this.syncDiagnosticModeState();
     this.addSessionStorageListener();
@@ -109,6 +114,12 @@ class DevTools extends React.Component {
   hydrateExternalSnippetSetting = async () => {
     this.setState({
       allowExternalSnippets: await getAllowExternalSnippets(),
+    });
+  };
+
+  hydrateCaptureConsent = async () => {
+    this.setState({
+      captureConsentAccepted: await getSensitiveCaptureConsentAccepted(),
     });
   };
 
@@ -171,6 +182,7 @@ class DevTools extends React.Component {
 
     this.setState({
       allowExternalSnippets: session.modes.allowExternalSnippets,
+      captureConsentAccepted: session.modes.captureConsentAccepted,
       capturePaused: session.modes.capturePaused,
       stack: session.stack,
       diagnosticLogs: session.diagnosticLogs,
@@ -203,6 +215,19 @@ class DevTools extends React.Component {
         }
 
         if (
+          Object.prototype.hasOwnProperty.call(
+            changes,
+            SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY
+          )
+        ) {
+          this.setState({
+            captureConsentAccepted: Boolean(
+              changes[SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY]?.newValue
+            ),
+          });
+        }
+
+        if (
           !Object.prototype.hasOwnProperty.call(
             changes,
             GRAPHXRAY_SESSION_STORAGE_KEY
@@ -221,6 +246,7 @@ class DevTools extends React.Component {
 
         this.setState({
           allowExternalSnippets: nextSession.modes.allowExternalSnippets,
+          captureConsentAccepted: nextSession.modes.captureConsentAccepted,
           capturePaused: nextSession.modes.capturePaused,
           stack: nextSession.stack,
           diagnosticLogs: nextSession.diagnosticLogs,
@@ -238,6 +264,7 @@ class DevTools extends React.Component {
       diagnosticLogs: this.state.diagnosticLogs,
       modes: {
         allowExternalSnippets: this.state.allowExternalSnippets,
+        captureConsentAccepted: this.state.captureConsentAccepted,
         capturePaused: this.state.capturePaused,
         diagnosticMode: this.state.diagnosticMode,
         snippetLanguage: this.state.snippetLanguage,
@@ -421,6 +448,7 @@ class DevTools extends React.Component {
     await clearGraphXRayLocalData();
     this.setState(
       {
+        captureConsentAccepted: false,
         stack: [],
         diagnosticLogs: [],
       },
@@ -429,6 +457,22 @@ class DevTools extends React.Component {
     this.recordDiagnostic("local_cache_cleared", {
       snippetLanguage: this.state.snippetLanguage,
     });
+  };
+
+  acknowledgeCaptureConsent = async () => {
+    await saveSensitiveCaptureConsentAccepted(true);
+    this.setState(
+      {
+        captureConsentAccepted: true,
+      },
+      () => {
+        this.scheduleSessionSync();
+        this.recordDiagnostic("capture_consent_acknowledged", {
+          snippetLanguage: this.state.snippetLanguage,
+          ultraXRayMode: this.state.ultraXRayMode,
+        });
+      }
+    );
   };
 
   addDiagnosticLogListener() {
@@ -454,6 +498,13 @@ class DevTools extends React.Component {
     hostWebview.addEventListener("message", (event) => {
       const msg = JSON.parse(event.data);
       if (msg.eventName === "GraphCall") {
+        if (!this.state.captureConsentAccepted) {
+          this.recordDiagnostic("capture_skipped_no_consent", {
+            source: "host_graph_call",
+            eventName: msg.eventName,
+          });
+          return;
+        }
         if (this.state.capturePaused) {
           this.recordDiagnostic("capture_skipped_paused", {
             source: "host_graph_call",
@@ -647,6 +698,14 @@ class DevTools extends React.Component {
     }
     devtoolsApi.network.onRequestFinished.addListener(async (harEntry) => {
       try {
+        if (!this.state.captureConsentAccepted) {
+          this.recordDiagnostic("capture_skipped_no_consent", {
+            source: "network",
+            method: harEntry?.request?.method,
+            url: harEntry?.request?.url,
+          });
+          return;
+        }
         if (this.state.capturePaused) {
           this.recordDiagnostic("capture_skipped_paused", {
             source: "network",
@@ -839,6 +898,27 @@ class DevTools extends React.Component {
                 using <strong>Graph X-Ray</strong>. Firefox only starts raising
                 `devtools.network.onRequestFinished` after the Network tool has
                 been activated.
+              </div>
+            )}
+            {!this.state.captureConsentAccepted && (
+              <div
+                style={{
+                  borderLeft: "4px solid #d97706",
+                  backgroundColor: "#fffbeb",
+                  color: "#7c2d12",
+                  padding: "12px 14px",
+                  marginBottom: "14px",
+                  borderRadius: "6px",
+                }}
+              >
+                <div style={{ marginBottom: "10px" }}>
+                  Capture is blocked until you acknowledge that Graph X-Ray can
+                  store and export sensitive Microsoft 365 administrative API
+                  data locally.
+                </div>
+                <PrimaryButton onClick={this.acknowledgeCaptureConsent}>
+                  I understand and want to enable capture
+                </PrimaryButton>
               </div>
             )}
             {this.state.capturePaused && (
