@@ -14,6 +14,7 @@ import {
   getExportSanitizationMode,
   getAllowExternalSnippets,
   getSensitiveCaptureConsentAccepted,
+  getUltraXRayAcknowledged,
   saveExportSanitizationMode,
   saveAllowExternalSnippets,
   saveSensitiveCaptureConsentAccepted,
@@ -35,6 +36,7 @@ class Options extends React.Component {
       allowExternalSnippets: false,
       captureConsentAccepted: false,
       exportSanitizationMode: DEFAULT_EXPORT_SANITIZATION_MODE,
+      ultraXRayAcknowledged: false,
     };
   }
 
@@ -43,6 +45,7 @@ class Options extends React.Component {
       allowExternalSnippets: await getAllowExternalSnippets(),
       captureConsentAccepted: await getSensitiveCaptureConsentAccepted(),
       exportSanitizationMode: await getExportSanitizationMode(),
+      ultraXRayAcknowledged: await getUltraXRayAcknowledged(),
     });
   }
 
@@ -180,6 +183,28 @@ class Options extends React.Component {
                   mask sensitive tokens, emails, GUIDs, and common credential
                   fields. Summary exports save metadata-only JSON instead of the
                   full request, response, or snippet body.
+                </p>
+              </div>
+              <div
+                style={{
+                  boxShadow: theme.effects.elevation4,
+                  padding: "16px",
+                  marginBottom: "20px",
+                  borderRadius: "8px",
+                }}
+              >
+                <h3 style={{ marginTop: 0 }}>Ultra X-Ray safeguard</h3>
+                <p style={{ marginBottom: 0, color: "#475569" }}>
+                  Ultra X-Ray is disabled by default and requires a warning
+                  acknowledgement the first time you enable it from the DevTools
+                  panel. It can expose undocumented or internal Microsoft admin
+                  APIs that carry higher data-handling risk.
+                </p>
+                <p style={{ marginBottom: 0, color: "#475569" }}>
+                  Current acknowledgement state:{" "}
+                  <strong>
+                    {this.state.ultraXRayAcknowledged ? "accepted" : "required"}
+                  </strong>
                 </p>
               </div>
               <ul>

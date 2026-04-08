@@ -15,6 +15,7 @@ const DEFAULT_SESSION_MODES = {
   diagnosticMode: false,
   exportSanitizationMode: "redacted",
   snippetLanguage: "powershell",
+  ultraXRayAcknowledged: false,
   ultraXRayMode: false,
 };
 

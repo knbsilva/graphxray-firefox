@@ -22,10 +22,12 @@ import {
   ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY,
   EXPORT_SANITIZATION_MODE_STORAGE_KEY,
   SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY,
+  ULTRA_XRAY_ACKNOWLEDGED_STORAGE_KEY,
   clearGraphXRayLocalData,
   getExportSanitizationMode,
   getGraphXRaySession,
   getSensitiveCaptureConsentAccepted,
+  getUltraXRayAcknowledged,
   saveGraphXRaySession,
   getAllowExternalSnippets,
   saveSensitiveCaptureConsentAccepted,
@@ -104,6 +106,7 @@ class Dashboard extends React.Component {
     session.modes.captureConsentAccepted =
       await getSensitiveCaptureConsentAccepted();
     session.modes.exportSanitizationMode = await getExportSanitizationMode();
+    session.modes.ultraXRayAcknowledged = await getUltraXRayAcknowledged();
     this.setState((previousState) => {
       const previousVisibleEntries = this.getVisibleEntries(previousState.session);
       const nextVisibleEntries = this.getVisibleEntries(
@@ -173,6 +176,17 @@ class Dashboard extends React.Component {
           }
 
           if (
+            Object.prototype.hasOwnProperty.call(
+              changes,
+              ULTRA_XRAY_ACKNOWLEDGED_STORAGE_KEY
+            )
+          ) {
+            session.modes.ultraXRayAcknowledged = Boolean(
+              changes[ULTRA_XRAY_ACKNOWLEDGED_STORAGE_KEY]?.newValue
+            );
+          }
+
+          if (
             !Object.prototype.hasOwnProperty.call(
               changes,
               GRAPHXRAY_SESSION_STORAGE_KEY
@@ -188,6 +202,10 @@ class Dashboard extends React.Component {
             !Object.prototype.hasOwnProperty.call(
               changes,
               SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY
+            ) &&
+            !Object.prototype.hasOwnProperty.call(
+              changes,
+              ULTRA_XRAY_ACKNOWLEDGED_STORAGE_KEY
             )
           ) {
             return null;
@@ -657,6 +675,9 @@ class Dashboard extends React.Component {
                     Export mode: {session.modes.exportSanitizationMode}
                   </span>
                   <span className="DashboardMetaChip">
+                    Ultra X-Ray ack: {session.modes.ultraXRayAcknowledged ? "Accepted" : "Required"}
+                  </span>
+                  <span className="DashboardMetaChip">
                     Consent: {session.modes.captureConsentAccepted ? "Accepted" : "Required"}
                   </span>
                   <span className="DashboardMetaChip">
@@ -730,6 +751,29 @@ class Dashboard extends React.Component {
                   <PrimaryButton onClick={this.acknowledgeCaptureConsent}>
                     I understand and want to enable capture
                   </PrimaryButton>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {session.modes.ultraXRayMode && (
+            <div
+              className="DashboardCard"
+              style={{ boxShadow: theme.effects.elevation16, marginBottom: "24px" }}
+            >
+              <div className="DashboardCardInner">
+                <div
+                  style={{
+                    borderLeft: "4px solid #b45309",
+                    backgroundColor: "#fffbeb",
+                    color: "#92400e",
+                    padding: "12px 14px",
+                    borderRadius: "8px",
+                  }}
+                >
+                  Ultra X-Ray is enabled. Internal or undocumented Microsoft
+                  admin APIs can appear in this session and should be treated as
+                  higher-risk data.
                 </div>
               </div>
             </div>

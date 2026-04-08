@@ -140,3 +140,4 @@
 - Rejected untrusted runtime message senders and hardened host/webview message parsing so malformed or spoofed payloads are ignored instead of being processed directly.
 - Added package-time validation to block suspicious capture artifacts such as `GraphXRay*` exports, `.har` files, or local capture folders from entering Firefox release bundles.
 - Replaced the developer-local Jest runner path with a repo-relative path to remove machine-specific metadata from `package.json`.
+- Added an explicit first-enable acknowledgement flow for Ultra X-Ray and a persistent warning banner while the higher-risk mode is enabled.

@@ -102,6 +102,7 @@ Notes:
 - First-use consent is required before Graph X-Ray starts appending new captured entries.
 - External snippet generation is opt-in. Local only mode prevents request payloads from being sent to the Microsoft Graph DevX snippet service.
 - Snippet generation quality depends on endpoint coverage in the Microsoft Graph snippet service when external snippets are enabled.
+- Ultra X-Ray now requires an explicit first-enable acknowledgement because it can surface undocumented or internal Microsoft admin APIs.
 - For PowerShell, this fork renders a local `Invoke-MgGraphRequest` snippet immediately and only upgrades it if DevX later returns a valid snippet.
 - Export sanitization defaults to `redacted`. You can switch to `raw` or `summary` from the Graph X-Ray options page.
 - Session entries are shown newest first in the UI, while `Save script` keeps the captured session export in chronological order.
@@ -191,6 +192,7 @@ This is the folder you should use for temporary loading in Firefox when you want
 
 - Graph X-Ray can capture sensitive Microsoft 365 administrative request bodies, response bodies, and generated snippets.
 - A first-use consent acknowledgement is required before new captures are appended.
+- Ultra X-Ray has a separate acknowledgement step because it can expose higher-risk undocumented or internal API traffic.
 - Diagnostic exports can contain redacted troubleshooting data, but should still be treated as sensitive.
 - Export sanitization can be set to:
   - `raw` to preserve captured content as-is

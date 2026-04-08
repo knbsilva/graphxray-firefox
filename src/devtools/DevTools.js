@@ -24,15 +24,18 @@ import {
   ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY,
   EXPORT_SANITIZATION_MODE_STORAGE_KEY,
   SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY,
+  ULTRA_XRAY_ACKNOWLEDGED_STORAGE_KEY,
   getExportSanitizationMode,
   getAllowExternalSnippets,
   getGraphXRaySession,
   getSensitiveCaptureConsentAccepted,
+  getUltraXRayAcknowledged,
   clearGraphXRayLocalData,
   saveAllowExternalSnippets,
   saveDiagnosticModeEnabled,
   saveGraphXRaySession,
   saveSensitiveCaptureConsentAccepted,
+  saveUltraXRayAcknowledged,
 } from "../common/storage.js";
 import {
   buildDiagnosticEntry,
@@ -89,6 +92,7 @@ class DevTools extends React.Component {
       diagnosticMode,
       exportSanitizationMode: DEFAULT_EXPORT_SANITIZATION_MODE,
       snippetLanguage: "powershell",
+      ultraXRayAcknowledged: false,
       ultraXRayMode,
     };
     this.sessionSyncTimeout = null;
@@ -100,6 +104,7 @@ class DevTools extends React.Component {
     this.hydrateCaptureConsent();
     this.hydrateExternalSnippetSetting();
     this.hydrateExportSanitizationMode();
+    this.hydrateUltraXRayAcknowledgement();
     this.syncDiagnosticModeState();
     this.addSessionStorageListener();
     this.addDiagnosticLogListener();
@@ -138,6 +143,12 @@ class DevTools extends React.Component {
   hydrateCaptureConsent = async () => {
     this.setState({
       captureConsentAccepted: await getSensitiveCaptureConsentAccepted(),
+    });
+  };
+
+  hydrateUltraXRayAcknowledgement = async () => {
+    this.setState({
+      ultraXRayAcknowledged: await getUltraXRayAcknowledged(),
     });
   };
 
@@ -207,6 +218,7 @@ class DevTools extends React.Component {
       diagnosticMode: session.modes.diagnosticMode,
       exportSanitizationMode: session.modes.exportSanitizationMode,
       snippetLanguage: session.modes.snippetLanguage,
+      ultraXRayAcknowledged: session.modes.ultraXRayAcknowledged,
       ultraXRayMode: session.modes.ultraXRayMode,
     });
   };
@@ -260,6 +272,19 @@ class DevTools extends React.Component {
         }
 
         if (
+          Object.prototype.hasOwnProperty.call(
+            changes,
+            ULTRA_XRAY_ACKNOWLEDGED_STORAGE_KEY
+          )
+        ) {
+          this.setState({
+            ultraXRayAcknowledged: Boolean(
+              changes[ULTRA_XRAY_ACKNOWLEDGED_STORAGE_KEY]?.newValue
+            ),
+          });
+        }
+
+        if (
           !Object.prototype.hasOwnProperty.call(
             changes,
             GRAPHXRAY_SESSION_STORAGE_KEY
@@ -285,6 +310,7 @@ class DevTools extends React.Component {
           diagnosticMode: nextSession.modes.diagnosticMode,
           exportSanitizationMode: nextSession.modes.exportSanitizationMode,
           snippetLanguage: nextSession.modes.snippetLanguage,
+          ultraXRayAcknowledged: nextSession.modes.ultraXRayAcknowledged,
           ultraXRayMode: nextSession.modes.ultraXRayMode,
         });
       }
@@ -302,6 +328,7 @@ class DevTools extends React.Component {
         diagnosticMode: this.state.diagnosticMode,
         exportSanitizationMode: this.state.exportSanitizationMode,
         snippetLanguage: this.state.snippetLanguage,
+        ultraXRayAcknowledged: this.state.ultraXRayAcknowledged,
         ultraXRayMode: this.state.ultraXRayMode,
       },
       sourceContext,
@@ -518,6 +545,7 @@ class DevTools extends React.Component {
         captureConsentAccepted: false,
         stack: [],
         diagnosticLogs: [],
+        ultraXRayAcknowledged: false,
       },
       this.scheduleSessionSync
     );
@@ -863,11 +891,42 @@ class DevTools extends React.Component {
   };
 
   onUltraXRayToggle = (e, checked) => {
-    this.setState({ ultraXRayMode: checked }, this.scheduleSessionSync);
-    localStorage.setItem("graphxray-ultraXRayMode", JSON.stringify(checked));
+    const nextValue = Boolean(checked);
+
+    if (nextValue && !this.state.ultraXRayAcknowledged) {
+      const confirmed =
+        typeof window === "undefined"
+          ? false
+          : window.confirm(
+              "Ultra X-Ray exposes undocumented or internal Microsoft admin APIs. These endpoints are unsupported and can surface higher-risk data. Enable Ultra X-Ray?"
+            );
+
+      if (!confirmed) {
+        this.recordDiagnostic("ultra_xray_enable_cancelled", {
+          reason: "acknowledgement_required",
+        });
+        return;
+      }
+
+      saveUltraXRayAcknowledged(true).catch((error) => {
+        warnLog("Could not persist Ultra X-Ray acknowledgement", error);
+      });
+    }
+
+    this.setState(
+      {
+        ultraXRayAcknowledged: nextValue
+          ? true
+          : this.state.ultraXRayAcknowledged,
+        ultraXRayMode: nextValue,
+      },
+      this.scheduleSessionSync
+    );
+    localStorage.setItem("graphxray-ultraXRayMode", JSON.stringify(nextValue));
     this.clearStack();
     this.recordDiagnostic("ultra_xray_toggled", {
-      enabled: checked,
+      enabled: nextValue,
+      acknowledged: nextValue ? true : this.state.ultraXRayAcknowledged,
       stackCleared: true,
     });
   };
@@ -1030,6 +1089,22 @@ class DevTools extends React.Component {
                 Capture is paused. Graph X-Ray will keep the current session
                 visible, but it will not append new entries until you resume
                 capture.
+              </div>
+            )}
+            {this.state.ultraXRayMode && (
+              <div
+                style={{
+                  borderLeft: "4px solid #b45309",
+                  backgroundColor: "#fffbeb",
+                  color: "#92400e",
+                  padding: "10px 12px",
+                  marginBottom: "14px",
+                  borderRadius: "6px",
+                }}
+              >
+                Ultra X-Ray is enabled. Graph X-Ray can now capture internal or
+                undocumented Microsoft admin APIs that are higher risk and
+                unsupported for automation use.
               </div>
             )}
             {!this.state.allowExternalSnippets && (

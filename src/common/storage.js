@@ -15,6 +15,7 @@ const REQUEST_BODIES_STORAGE_KEY = "requestBodiesCache";
 const ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY = "graphxrayAllowExternalSnippets";
 const SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY = "graphxraySensitiveCaptureConsent";
 const EXPORT_SANITIZATION_MODE_STORAGE_KEY = "graphxrayExportSanitizationMode";
+const ULTRA_XRAY_ACKNOWLEDGED_STORAGE_KEY = "graphxrayUltraXRayAcknowledged";
 const LEGACY_EXTENSION_STATE = {
   currentMetrics: {
     urls: [],
@@ -79,6 +80,12 @@ const saveExportSanitizationMode = async (mode) =>
   await saveObjectInLocalStorage({
     [EXPORT_SANITIZATION_MODE_STORAGE_KEY]: mode || "redacted",
   });
+const getUltraXRayAcknowledged = async () =>
+  Boolean(await getObjectFromLocalStorage(ULTRA_XRAY_ACKNOWLEDGED_STORAGE_KEY));
+const saveUltraXRayAcknowledged = async (acknowledged) =>
+  await saveObjectInLocalStorage({
+    [ULTRA_XRAY_ACKNOWLEDGED_STORAGE_KEY]: Boolean(acknowledged),
+  });
 const getGraphXRaySession = async () => {
   const rawSession = await getObjectFromLocalStorage(GRAPHXRAY_SESSION_STORAGE_KEY);
   const normalizedSession = normalizeSessionState(rawSession);
@@ -102,6 +109,7 @@ const clearGraphXRayLocalData = async () => {
     ...LEGACY_EXTENSION_STATE,
     [EXPORT_SANITIZATION_MODE_STORAGE_KEY]: "redacted",
     [SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY]: false,
+    [ULTRA_XRAY_ACKNOWLEDGED_STORAGE_KEY]: false,
     [GRAPHXRAY_SESSION_STORAGE_KEY]: createEmptySessionState(),
   });
 
@@ -161,6 +169,7 @@ export {
   ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY,
   EXPORT_SANITIZATION_MODE_STORAGE_KEY,
   SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY,
+  ULTRA_XRAY_ACKNOWLEDGED_STORAGE_KEY,
   getObjectFromLocalStorage,
   saveObjectInLocalStorage,
   commitIfActive,
@@ -178,6 +187,8 @@ export {
   saveSensitiveCaptureConsentAccepted,
   getExportSanitizationMode,
   saveExportSanitizationMode,
+  getUltraXRayAcknowledged,
+  saveUltraXRayAcknowledged,
   getGraphXRaySession,
   saveGraphXRaySession,
   clearGraphXRaySession,
