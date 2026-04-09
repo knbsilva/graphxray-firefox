@@ -49,6 +49,7 @@
 - Removed unused Yarn Plug'n'Play integration from the Firefox build configuration and toolchain dependencies.
 - Removed legacy Jest watch/typeahead and direct resolve dependencies that were no longer needed by the Firefox fork's test runner.
 - Removed the obsolete `react-app-polyfill/jsdom` test setup dependency from the Jest configuration.
+- Upgraded the Jest stack from `26.x` to `29.x`, including explicit `jest-environment-jsdom`, to reduce the remaining development-time audit backlog without changing runtime behavior.
 
 ### Firefox-Only Fork Adjustments
 
