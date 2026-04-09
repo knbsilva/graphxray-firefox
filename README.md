@@ -246,6 +246,7 @@ Runs a repository-local validation that enforces key Firefox security invariants
 - `Save script` follows the current export sanitization mode. `summary` exports script metadata instead of full code.
 - Clipboard copy actions for `Request`, `Response`, `Snippet`, and `Save script` follow the current export sanitization mode as well.
 - `Save logs` exports the diagnostic session when Diagnostic Mode is enabled, follows the current export sanitization mode, and asks for confirmation because the file can contain sensitive administrative data.
+- Turning `Diagnostic Mode` off now purges the active diagnostic log set from the session instead of leaving older logs persisted in local storage.
 - `Pause capture` / `Resume capture` controls whether new requests are appended while keeping the current session available for review and export.
 - `Clear local cache` clears the current session plus local request-body correlation cache and legacy local capture state.
 - `Clear local cache` also resets first-use consent, external snippets, diagnostic mode, Ultra X-Ray acknowledgements, and related local risk controls back to their safe defaults.

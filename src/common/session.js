@@ -69,16 +69,19 @@ const normalizeSessionState = (session, retentionMsOverride = null) => {
     return baseState;
   }
 
+  const normalizedModes = {
+    ...baseState.modes,
+    ...(session.modes || {}),
+    sessionRetentionMs: effectiveRetentionMs,
+  };
+
   return {
     stack: Array.isArray(session.stack) ? session.stack : baseState.stack,
-    diagnosticLogs: Array.isArray(session.diagnosticLogs)
-      ? session.diagnosticLogs
-      : baseState.diagnosticLogs,
-    modes: {
-      ...baseState.modes,
-      ...(session.modes || {}),
-      sessionRetentionMs: effectiveRetentionMs,
-    },
+    diagnosticLogs:
+      normalizedModes.diagnosticMode && Array.isArray(session.diagnosticLogs)
+        ? session.diagnosticLogs
+        : baseState.diagnosticLogs,
+    modes: normalizedModes,
     updatedAt: session.updatedAt || baseState.updatedAt,
     sourceContext: session.sourceContext || baseState.sourceContext,
   };
@@ -89,16 +92,20 @@ const buildSessionSnapshot = ({
   diagnosticLogs = [],
   modes = {},
   sourceContext = "unknown",
-}) => ({
-  stack,
-  diagnosticLogs,
-  modes: {
+}) => {
+  const normalizedModes = {
     ...DEFAULT_SESSION_MODES,
     ...modes,
-  },
-  updatedAt: new Date().toISOString(),
-  sourceContext,
-});
+  };
+
+  return {
+    stack,
+    diagnosticLogs: normalizedModes.diagnosticMode ? diagnosticLogs : [],
+    modes: normalizedModes,
+    updatedAt: new Date().toISOString(),
+    sourceContext,
+  };
+};
 
 const getSaveScriptContentFromStack = (stack = []) => {
   const sections = [];

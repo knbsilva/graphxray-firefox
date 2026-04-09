@@ -1105,10 +1105,10 @@ class DevTools extends React.Component {
     await saveDiagnosticModeEnabled(checked);
 
     this.setState(
-      (previousState) => ({
+      {
         diagnosticMode: checked,
-        diagnosticLogs: checked ? [] : previousState.diagnosticLogs,
-      }),
+        diagnosticLogs: [],
+      },
       () => {
         this.scheduleSessionSync();
         if (checked) {

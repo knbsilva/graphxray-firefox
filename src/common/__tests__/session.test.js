@@ -1,5 +1,6 @@
 import {
   DEFAULT_SESSION_RETENTION_MS,
+  buildSessionSnapshot,
   createEmptySessionState,
   isSessionExpired,
   normalizeSessionRetentionMs,
@@ -46,5 +47,33 @@ describe("session retention", () => {
     const normalized = normalizeSessionState(activeSession, 15 * 60 * 1000);
     expect(normalized.stack).toHaveLength(1);
     expect(normalized.modes.sessionRetentionMs).toBe(15 * 60 * 1000);
+  });
+
+  it("drops persisted diagnostic logs when diagnostic mode is disabled", () => {
+    const sessionWithDisabledDiagnostics = {
+      stack: [{ displayRequestUrl: "GET https://graph.microsoft.com/v1.0/me" }],
+      diagnosticLogs: [{ event: "captured" }],
+      modes: {
+        diagnosticMode: false,
+      },
+      updatedAt: new Date().toISOString(),
+      sourceContext: "devtools",
+    };
+
+    const normalized = normalizeSessionState(sessionWithDisabledDiagnostics);
+    expect(normalized.diagnosticLogs).toEqual([]);
+  });
+
+  it("does not include diagnostic logs in session snapshots when diagnostic mode is disabled", () => {
+    const snapshot = buildSessionSnapshot({
+      stack: [],
+      diagnosticLogs: [{ event: "captured" }],
+      modes: {
+        diagnosticMode: false,
+      },
+      sourceContext: "dashboard",
+    });
+
+    expect(snapshot.diagnosticLogs).toEqual([]);
   });
 });
