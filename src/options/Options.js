@@ -31,6 +31,11 @@ import {
   EXPORT_SANITIZATION_MODES,
 } from "../common/security.js";
 import {
+  hasOptionalPermissionScope,
+  removeOptionalPermissionScope,
+  requestOptionalPermissionScope,
+} from "../common/optionalPermissions.js";
+import {
   DEFAULT_SESSION_RETENTION_MS,
   SESSION_RETENTION_OPTIONS,
 } from "../common/session.js";
@@ -63,7 +68,23 @@ class Options extends React.Component {
       sessionRetentionMs: await getSessionRetentionMs(),
       ultraXRayAcknowledged: await getUltraXRayAcknowledged(),
     });
+    await this.reconcileOptionalPermissionStates();
   }
+
+  reconcileOptionalPermissionStates = async () => {
+    const [externalSnippetsAllowed, externalPermissionGranted] =
+      await Promise.all([
+        getAllowExternalSnippets(),
+        hasOptionalPermissionScope("externalSnippets"),
+      ]);
+
+    if (externalSnippetsAllowed && !externalPermissionGranted) {
+      await saveAllowExternalSnippets(false);
+      this.setState({
+        allowExternalSnippets: false,
+      });
+    }
+  };
 
   onAllowExternalSnippetsChange = async (_, checked) => {
     const enabled = Boolean(checked);
@@ -80,6 +101,17 @@ class Options extends React.Component {
 
     if (enabled && !this.state.externalSnippetsAcknowledged) {
       await saveExternalSnippetsAcknowledged(true);
+    }
+
+    if (enabled) {
+      const permissionGranted = await requestOptionalPermissionScope(
+        "externalSnippets"
+      );
+      if (!permissionGranted) {
+        return;
+      }
+    } else {
+      await removeOptionalPermissionScope("externalSnippets");
     }
 
     await saveAllowExternalSnippets(enabled);
@@ -208,6 +240,11 @@ class Options extends React.Component {
                   submission.
                 </p>
                 <p style={{ marginBottom: 0, color: "#475569" }}>
+                  Firefox will request the optional DevX host permission the
+                  first time you enable this setting, and remove it again when
+                  you disable the setting or clear the local cache.
+                </p>
+                <p style={{ marginBottom: 0, color: "#475569" }}>
                   Current acknowledgement state:{" "}
                   <strong>
                     {this.state.externalSnippetsAcknowledged
@@ -312,6 +349,11 @@ class Options extends React.Component {
                   acknowledgement the first time you enable it from the DevTools
                   panel. It can expose undocumented or internal Microsoft admin
                   APIs that carry higher data-handling risk.
+                </p>
+                <p style={{ marginBottom: 0, color: "#475569" }}>
+                  Firefox also requests optional host permissions for the
+                  higher-risk admin endpoints the first time Ultra X-Ray is
+                  enabled.
                 </p>
                 <p style={{ marginBottom: 0, color: "#475569" }}>
                   Current acknowledgement state:{" "}

@@ -262,13 +262,28 @@ export async function init() {
     }
 
     const listenerUrls = getAllowedDomainUrls(ultraXRayMode);
-    extensionApi.webRequest.onBeforeRequest.addListener(
-      requestBodyListener,
-      {
-        urls: listenerUrls,
-      },
-      ["requestBody"]
-    );
+    try {
+      extensionApi.webRequest.onBeforeRequest.addListener(
+        requestBodyListener,
+        {
+          urls: listenerUrls,
+        },
+        ["requestBody"]
+      );
+    } catch (error) {
+      requestBodyListenerScope = "disabled";
+      warnLog("Could not register request body listener", error);
+      emitDiagnosticLog(
+        "request_body_listener_registration_failed",
+        {
+          ultraXRayMode,
+          domainCount: listenerUrls.length,
+          error: error?.message || String(error),
+        },
+        "error"
+      );
+      return;
+    }
     emitDiagnosticLog("request_body_listener_updated", {
       enabled: true,
       ultraXRayMode,

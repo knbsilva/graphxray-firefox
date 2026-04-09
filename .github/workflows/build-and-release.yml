@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: build-and-release-${{ github.ref }}
@@ -17,6 +17,8 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      current_version: ${{ steps.get_version.outputs.current_version }}
 
     steps:
       - name: Checkout code
@@ -39,9 +41,23 @@ jobs:
       - name: Validate Firefox build and package
         run: npm run package
 
-      - name: Output build information
+      - name: Get build version
+        id: get_version
         run: |
           CURRENT_VERSION=$(node -p "require('./package.json').version")
+          echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Upload validated release packages
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: firefox-packages-${{ steps.get_version.outputs.current_version }}
+          path: |
+            build/packages/graphxray-firefox-v${{ steps.get_version.outputs.current_version }}.zip
+            build/packages/graphxray-firefox-unsigned-v${{ steps.get_version.outputs.current_version }}.xpi
+
+      - name: Output build information
+        run: |
+          CURRENT_VERSION="${{ steps.get_version.outputs.current_version }}"
           echo "✅ Build completed successfully!"
           echo "📦 Version: $CURRENT_VERSION"
           echo "🏗️ Firefox unpacked build: build/firefox/"
@@ -53,9 +69,11 @@ jobs:
           fi
 
   release:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout code
@@ -63,27 +81,14 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - name: Download validated release packages
+        uses: actions/download-artifact@95815c38cf689c6ac94f1f98287bbf6f9e1eac6c # v4.2.1
         with:
-          node-version: '18'
-          cache: 'npm'
+          name: firefox-packages-${{ needs.build.outputs.current_version }}
+          path: build/packages
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run unit tests
-        run: npm test -- --watchAll=false --runInBand
-
-      - name: Build and package release artifacts
-        run: npm run package
-
-      - name: Get release version
-        id: get_version
-        run: |
-          CURRENT_VERSION=$(node -p "require('./package.json').version")
-          echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
-          echo "Current version: $CURRENT_VERSION"
+      - name: Show release artifact contents
+        run: ls -R build/packages
 
       - name: Create Release
         id: create_release
@@ -91,20 +96,20 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: v${{ steps.get_version.outputs.current_version }}
-          release_name: Graph X-Ray Firefox v${{ steps.get_version.outputs.current_version }}
+          tag_name: v${{ needs.build.outputs.current_version }}
+          release_name: Graph X-Ray Firefox v${{ needs.build.outputs.current_version }}
           body: |
-            ## Graph X-Ray Firefox v${{ steps.get_version.outputs.current_version }}
+            ## Graph X-Ray Firefox v${{ needs.build.outputs.current_version }}
 
             ### Changes
             - Manual release from commit ${{ github.sha }}
 
             ### Installation
             - Firefox development:
-              - Download `graphxray-firefox-v${{ steps.get_version.outputs.current_version }}.zip`
+              - Download `graphxray-firefox-v${{ needs.build.outputs.current_version }}.zip`
               - Extract the archive, open `about:debugging#/runtime/this-firefox`, and load the included `manifest.json` as a temporary add-on
             - Firefox installation:
-              - `graphxray-firefox-unsigned-v${{ steps.get_version.outputs.current_version }}.xpi` is unsigned and must be signed by Mozilla before standard Firefox installation
+              - `graphxray-firefox-unsigned-v${{ needs.build.outputs.current_version }}.xpi` is unsigned and must be signed by Mozilla before standard Firefox installation
 
           draft: false
           prerelease: false
@@ -115,8 +120,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./build/packages/graphxray-firefox-v${{ steps.get_version.outputs.current_version }}.zip
-          asset_name: graphxray-firefox-v${{ steps.get_version.outputs.current_version }}.zip
+          asset_path: ./build/packages/graphxray-firefox-v${{ needs.build.outputs.current_version }}.zip
+          asset_name: graphxray-firefox-v${{ needs.build.outputs.current_version }}.zip
           asset_content_type: application/zip
 
       - name: Upload Firefox XPI Release Asset
@@ -125,6 +130,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./build/packages/graphxray-firefox-unsigned-v${{ steps.get_version.outputs.current_version }}.xpi
-          asset_name: graphxray-firefox-unsigned-v${{ steps.get_version.outputs.current_version }}.xpi
+          asset_path: ./build/packages/graphxray-firefox-unsigned-v${{ needs.build.outputs.current_version }}.xpi
+          asset_name: graphxray-firefox-unsigned-v${{ needs.build.outputs.current_version }}.xpi
           asset_content_type: application/x-xpinstall

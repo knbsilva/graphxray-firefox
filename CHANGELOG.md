@@ -160,3 +160,8 @@
 - Updated the background request-body capture path to respect capture consent, pause state, and Ultra X-Ray mode instead of only filtering after interception.
 - Scoped Firefox `webRequest` request-body interception to the currently active domain set, disabling the listener entirely when capture is blocked and excluding Ultra X-Ray hosts while Ultra mode is off.
 - Hardened `Clear local cache` so it also resets external snippets, diagnostic mode, Ultra X-Ray, and related acknowledgements back to safe defaults instead of leaving risky controls enabled after a purge.
+- Moved the DevX endpoint and Ultra X-Ray admin hosts out of required Firefox host permissions and into optional host permissions requested only when those features are enabled.
+- Added permission-gated toggles for `Allow external snippet generation` and `Ultra X-Ray`, and made `Clear local cache` remove those optional permissions again.
+- Added reconciliation on load so Graph X-Ray disables `Ultra X-Ray` or external snippets if their optional Firefox host permissions were revoked outside the extension UI.
+- Changed the release workflow to publish exactly the validated package artifacts from the build job instead of rebuilding during release publication.
+- Reduced GitHub Actions default write scope by leaving `contents: write` only on the manual release job.

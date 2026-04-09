@@ -15,7 +15,12 @@ import {
   openExtensionOptionsPage,
 } from "../common/extensionApi.js";
 import {
+  hasOptionalPermissionScope,
+  removeOptionalPermissionScope,
+} from "../common/optionalPermissions.js";
+import {
   buildDiagnosticEntry,
+  DIAGNOSTIC_MODE_STORAGE_KEY,
   MAX_DIAGNOSTIC_LOG_ENTRIES,
 } from "../common/diagnostics.js";
 import {
@@ -37,6 +42,7 @@ import {
   saveGraphXRaySession,
   getAllowExternalSnippets,
   saveSensitiveCaptureConsentAccepted,
+  saveAllowExternalSnippets,
 } from "../common/storage.js";
 import {
   buildDiagnosticExportPayload,
@@ -131,6 +137,33 @@ class Dashboard extends React.Component {
     session.modes.persistSessionData = persistSessionData;
     session.modes.sessionRetentionMs = sessionRetentionMs;
     session.modes.ultraXRayAcknowledged = await getUltraXRayAcknowledged();
+
+    const [externalPermissionGranted, ultraPermissionGranted] =
+      await Promise.all([
+        hasOptionalPermissionScope("externalSnippets"),
+        hasOptionalPermissionScope("ultraXRay"),
+      ]);
+
+    if (session.modes.allowExternalSnippets && !externalPermissionGranted) {
+      session.modes.allowExternalSnippets = false;
+      await saveAllowExternalSnippets(false);
+    }
+
+    if (session.modes.ultraXRayMode && !ultraPermissionGranted) {
+      session.modes.ultraXRayMode = false;
+      await saveGraphXRaySession(
+        buildSessionSnapshot({
+          stack: session.stack,
+          diagnosticLogs: session.diagnosticLogs,
+          modes: session.modes,
+          sourceContext: "dashboard",
+        })
+      );
+      if (typeof localStorage !== "undefined") {
+        localStorage.removeItem("graphxray-ultraXRayMode");
+      }
+    }
+
     this.setState((previousState) => {
       const previousVisibleEntries = this.getVisibleEntries(previousState.session);
       const nextVisibleEntries = this.getVisibleEntries(
@@ -478,7 +511,15 @@ class Dashboard extends React.Component {
   };
 
   clearLocalCache = async () => {
+    await Promise.allSettled([
+      removeOptionalPermissionScope("externalSnippets"),
+      removeOptionalPermissionScope("ultraXRay"),
+    ]);
     await clearGraphXRayLocalData();
+    if (typeof localStorage !== "undefined") {
+      localStorage.removeItem("graphxray-ultraXRayMode");
+      localStorage.setItem(DIAGNOSTIC_MODE_STORAGE_KEY, JSON.stringify(false));
+    }
     const nextSession = buildSessionSnapshot({
       stack: [],
       diagnosticLogs: [],

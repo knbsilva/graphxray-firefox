@@ -15,7 +15,9 @@
     "https://graph.microsoft.com/",
     "https://graph.microsoft.us/",
     "https://microsoftgraph.chinacloudapi.cn/",
-    "https://dod-graph.microsoft.us/",
+    "https://dod-graph.microsoft.us/"
+  ],
+  "optional_host_permissions": [
     "https://main.iam.ad.ext.azure.com/",
     "https://elm.iga.azure.com/",
     "https://pds.iga.azure.com/",

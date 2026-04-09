@@ -199,6 +199,61 @@ const openExtensionPage = async (path) => {
   return null;
 };
 
+const normalizePermissionsPayload = (permissions = {}) => ({
+  permissions: Array.isArray(permissions.permissions)
+    ? permissions.permissions
+    : [],
+  origins: Array.isArray(permissions.origins) ? permissions.origins : [],
+});
+
+const containsPermissions = async (permissions) => {
+  if (!extensionApi?.permissions?.contains) {
+    return null;
+  }
+
+  const normalizedPermissions = normalizePermissionsPayload(permissions);
+
+  if (browserApi) {
+    return extensionApi.permissions.contains(normalizedPermissions);
+  }
+
+  return wrapChromeCallback((callback) =>
+    extensionApi.permissions.contains(normalizedPermissions, callback)
+  );
+};
+
+const requestPermissions = async (permissions) => {
+  if (!extensionApi?.permissions?.request) {
+    return null;
+  }
+
+  const normalizedPermissions = normalizePermissionsPayload(permissions);
+
+  if (browserApi) {
+    return extensionApi.permissions.request(normalizedPermissions);
+  }
+
+  return wrapChromeCallback((callback) =>
+    extensionApi.permissions.request(normalizedPermissions, callback)
+  );
+};
+
+const removePermissions = async (permissions) => {
+  if (!extensionApi?.permissions?.remove) {
+    return null;
+  }
+
+  const normalizedPermissions = normalizePermissionsPayload(permissions);
+
+  if (browserApi) {
+    return extensionApi.permissions.remove(normalizedPermissions);
+  }
+
+  return wrapChromeCallback((callback) =>
+    extensionApi.permissions.remove(normalizedPermissions, callback)
+  );
+};
+
 const getHostWebview = () => {
   if (typeof window === "undefined") {
     return null;
@@ -288,6 +343,9 @@ export {
   downloadFile,
   getExtensionUrl,
   openExtensionPage,
+  containsPermissions,
+  requestPermissions,
+  removePermissions,
   getHostWebview,
   getDevtoolsApi,
   isFirefoxBrowser,

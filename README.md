@@ -103,6 +103,7 @@ Notes:
 - External snippet generation is opt-in. Local only mode prevents request payloads from being sent to the Microsoft Graph DevX snippet service.
 - Snippet generation quality depends on endpoint coverage in the Microsoft Graph snippet service when external snippets are enabled.
 - Ultra X-Ray now requires an explicit first-enable acknowledgement because it can surface undocumented or internal Microsoft admin APIs.
+- Enabling Ultra X-Ray in Firefox now also requests optional host permissions for the higher-risk admin endpoints, and disabling it removes those permissions again.
 - For PowerShell, this fork renders a local `Invoke-MgGraphRequest` snippet immediately and only upgrades it if DevX later returns a valid snippet.
 - Export sanitization defaults to `redacted`. You can switch to `raw` or `summary` from the Graph X-Ray options page.
 - Session entries are shown newest first in the UI, while `Save script` keeps the captured session export in chronological order.
@@ -162,6 +163,7 @@ Use the packaging scripts when you need releasable files instead of just unpacke
 The Firefox `.xpi` is unsigned. Use the unpacked Firefox build for `about:debugging`, or submit the unsigned `.xpi` to the Mozilla signing flow before normal installation.
 
 GitHub Actions now treats `push` and `pull_request` runs as validation-only. Release creation is a manual `workflow_dispatch` step so the workflow no longer mutates `main` automatically.
+Manual releases now publish the exact package artifacts that were already validated in the build job instead of rebuilding them again during publication.
 
 ## Available Scripts
 
@@ -198,6 +200,7 @@ Runs a production-focused dependency audit (`npm audit --omit=dev`) against the 
 - A first-use consent acknowledgement is required before new captures are appended.
 - Ultra X-Ray has a separate acknowledgement step because it can expose higher-risk undocumented or internal API traffic.
 - External snippet generation now has its own first-enable acknowledgement because it can transmit supported request payloads to the DevX service.
+- Firefox now requests optional host permissions only when you enable `Ultra X-Ray` or external snippet generation, instead of granting those hosts up front.
 - Diagnostic exports can contain redacted troubleshooting data, but should still be treated as sensitive.
 - Export sanitization can be set to:
   - `raw` to preserve captured content as-is
@@ -209,6 +212,8 @@ Runs a production-focused dependency audit (`npm audit --omit=dev`) against the 
 - Persisted session retention can be set from the options page to reduce how long captured data remains in local extension storage.
 - In `Local only` mode, Graph X-Ray does not submit captured request payloads to the external DevX snippet service.
 - If you enable external snippets, request payload content for supported languages can be sent to the DevX endpoint for snippet generation.
+- Disabling external snippets or clearing the local cache removes the optional DevX host permission again in Firefox.
+- If one of these optional permissions is later removed outside Graph X-Ray, the corresponding feature is disabled again on the next load instead of staying logically enabled.
 - Background request-body correlation now also respects capture consent, pause state, and Ultra X-Ray mode, so Firefox does not keep intercepting the broader host set when those controls are off.
 - Captured exports such as `GraphXRay*.json`, `GraphXRay*.ps1`, `GraphXRay*.py`, and `.har` files should never be committed to the repository.
 - Persisted session data now expires automatically after roughly 60 minutes unless a newer capture refreshes it.
