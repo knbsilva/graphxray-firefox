@@ -8,7 +8,7 @@ const HtmlWebpackPlugin = require('html-webpack-plugin');
 const CaseSensitivePathsPlugin = require('case-sensitive-paths-webpack-plugin');
 const TerserPlugin = require('terser-webpack-plugin');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
-const ManifestPlugin = require('webpack-manifest-plugin');
+const { WebpackManifestPlugin } = require('webpack-manifest-plugin');
 const InterpolateHtmlPlugin = require('react-dev-utils/InterpolateHtmlPlugin');
 const ModuleScopePlugin = require('react-dev-utils/ModuleScopePlugin');
 const getCSSModuleLocalIdent = require('react-dev-utils/getCSSModuleLocalIdent');
@@ -56,13 +56,10 @@ const hasJsxRuntime = (() => {
 module.exports = function (webpackEnv) {
   const isEnvDevelopment = webpackEnv === 'development';
   const isEnvProduction = webpackEnv === 'production';
-  const includeContentScript = paths.browserTarget !== 'firefox';
-
   // Variable used for enabling profiling in Production
   // passed into alias object. Uses a flag if passed into the build command
   const isEnvProductionProfile =
     isEnvProduction && process.argv.includes('--profile');
-  const useDevServerClient = isEnvDevelopment && paths.browserTarget !== 'firefox';
 
   // Get environment variables to inject into our app.
   const env = getClientEnvironment();
@@ -95,41 +92,11 @@ module.exports = function (webpackEnv) {
     // These are the "entry points" to our application.
     // This means they will be the "root" imports that are included in JS bundle.
     entry: {
-      app: [
-        useDevServerClient &&
-          require.resolve('webpack-dev-server/client') +
-            '?http://localhost:4000',
-        paths.appIndexJs,
-      ].filter(Boolean),
-      options: [
-        useDevServerClient &&
-          require.resolve('webpack-dev-server/client') +
-            '?http://localhost:4000',
-        paths.appOptionsJs,
-      ].filter(Boolean),
-      devtools: [
-        useDevServerClient &&
-          require.resolve('webpack-dev-server/client') +
-            '?http://localhost:4000',
-        paths.appDevToolsJs,
-      ].filter(Boolean),
-      dashboard: [
-        useDevServerClient &&
-          require.resolve('webpack-dev-server/client') +
-            '?http://localhost:4000',
-        paths.appDashboardJs,
-      ].filter(Boolean),
-      background: [
-        useDevServerClient &&
-          require.resolve('webpack-dev-server/client') +
-            '?http://localhost:4000',
-        paths.appBackgroundJs,
-      ].filter(Boolean),
-      ...(includeContentScript
-        ? {
-            contentScript: paths.appContentScriptJs,
-          }
-        : {}),
+      app: paths.appIndexJs,
+      options: paths.appOptionsJs,
+      devtools: paths.appDevToolsJs,
+      dashboard: paths.appDashboardJs,
+      background: paths.appBackgroundJs,
     },
     output: {
       // The build folder.
@@ -138,8 +105,6 @@ module.exports = function (webpackEnv) {
       pathinfo: isEnvDevelopment,
       // No need to hash because extension updates are managed by the browser distributer
       filename: '[name].bundle.js',
-      // TODO: remove this when upgrading to webpack 5
-      futureEmitAssets: false,
       publicPath: '',
       // Point sourcemap entries to original disk location (format as URL on Windows)
       devtoolModuleFilenameTemplate: isEnvProduction
@@ -151,7 +116,7 @@ module.exports = function (webpackEnv) {
           (info => path.resolve(info.absoluteResourcePath).replace(/\\/g, '/')),
       // Prevents conflicts when multiple webpack runtimes (from different apps)
       // are used on the same page.
-      jsonpFunction: `webpackJsonp${appPackageJson.name}`,
+      chunkLoadingGlobal: `webpackChunk${appPackageJson.name}`,
       // this defaults to 'window', but by setting it to 'this' then
       // module chunks which are built will work in web workers as well.
       globalObject: 'this',
@@ -198,7 +163,7 @@ module.exports = function (webpackEnv) {
               ascii_only: true,
             },
           },
-          sourceMap: shouldUseSourceMap,
+          extractComments: false,
         }),
       ],
     },
@@ -230,6 +195,16 @@ module.exports = function (webpackEnv) {
         }),
         ...(modules.webpackAliases || {}),
       },
+      fallback: {
+        module: false,
+        dgram: false,
+        dns: false,
+        fs: false,
+        http2: false,
+        net: false,
+        tls: false,
+        child_process: false,
+      },
       plugins: [
         // Prevents users from importing files from outside of src/ (or node_modules/).
         // This often causes confusion because we only process files within src/ with babel.
@@ -256,11 +231,14 @@ module.exports = function (webpackEnv) {
             // https://github.com/jshttp/mime-db
             {
               test: [/\.avif$/],
-              loader: require.resolve('url-loader'),
-              options: {
-                limit: imageInlineSizeLimit,
-                mimetype: 'image/avif',
-                name: 'static/media/[name].[ext]',
+              type: 'asset',
+              parser: {
+                dataUrlCondition: {
+                  maxSize: imageInlineSizeLimit,
+                },
+              },
+              generator: {
+                filename: 'static/media/[name][ext]',
               },
             },
             // "url" loader works like "file" loader except that it embeds assets
@@ -268,10 +246,14 @@ module.exports = function (webpackEnv) {
             // A missing `test` is equivalent to a match.
             {
               test: [/\.bmp$/, /\.gif$/, /\.jpe?g$/, /\.png$/],
-              loader: require.resolve('url-loader'),
-              options: {
-                limit: imageInlineSizeLimit,
-                name: 'static/media/[name].[ext]',
+              type: 'asset',
+              parser: {
+                dataUrlCondition: {
+                  maxSize: imageInlineSizeLimit,
+                },
+              },
+              generator: {
+                filename: 'static/media/[name][ext]',
               },
             },
             // Process application JS with Babel.
@@ -371,14 +353,14 @@ module.exports = function (webpackEnv) {
             // This loader doesn't use a "test" so it will catch all modules
             // that fall through the other loaders.
             {
-              loader: require.resolve('file-loader'),
+              type: 'asset/resource',
               // Exclude `js` files to keep "css" loader working as it injects
               // its runtime that would otherwise be processed through "file" loader.
               // Also exclude `html` and `json` extensions so they get processed
               // by webpacks internal loaders.
               exclude: [/\.(js|mjs|jsx|ts|tsx)$/, /\.html$/, /\.json$/],
-              options: {
-                name: 'static/media/[name].[hash:8].[ext]',
+              generator: {
+                filename: 'static/media/[name].[hash:8][ext]',
               },
             },
             // ** STOP ** Are you adding a new loader?
@@ -529,39 +511,19 @@ module.exports = function (webpackEnv) {
       //   `index.html`
       // - "entrypoints" key: Array of files which are included in `index.html`,
       //   can be used to reconstruct the HTML if necessary
-      new ManifestPlugin({
+      new WebpackManifestPlugin({
         fileName: 'asset-manifest.json',
         publicPath: '',
-        generate: (seed, files, entrypoints) => {
-          const manifestFiles = files.reduce((manifest, file) => {
-            manifest[file.name] = file.path;
-            return manifest;
-          }, seed);
-          const entrypointFiles = Object.keys(entrypoints).reduce(
-            (files, entry) => {
-              entrypoints[entry].forEach(fileName => {
-                if (!fileName.endsWith('.map')) {
-                  files.push(fileName);
-                }
-              });
-
-              return files;
-            },
-            []
-          );
-
-          return {
-            files: manifestFiles,
-            entrypoints: entrypointFiles,
-          };
-        },
       }),
       // Moment.js is an extremely popular library that bundles large locale files
       // by default due to how webpack interprets its code. This is a practical
       // solution that requires the user to opt into importing specific locales.
       // https://github.com/jmblog/how-to-optimize-momentjs-with-webpack
       // You can remove this if you don't use Moment.js:
-      new webpack.IgnorePlugin(/^\.\/locale$/, /moment$/),
+      new webpack.IgnorePlugin({
+        resourceRegExp: /^\.\/locale$/,
+        contextRegExp: /moment$/,
+      }),
       // TypeScript type checking
       useTypeScript &&
         (() => {
@@ -619,18 +581,6 @@ module.exports = function (webpackEnv) {
         },
       }),
     ].filter(Boolean),
-    // Some libraries import Node modules but don't use them in the browser.
-    // Tell webpack to provide empty mocks for them so importing them works.
-    node: {
-      module: 'empty',
-      dgram: 'empty',
-      dns: 'mock',
-      fs: 'empty',
-      http2: 'empty',
-      net: 'empty',
-      tls: 'empty',
-      child_process: 'empty',
-    },
     // Turn off performance processing because we utilize
     // our own hints via the FileSizeReporter
     performance: false,

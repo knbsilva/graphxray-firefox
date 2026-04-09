@@ -189,3 +189,7 @@
 - Replaced the Firefox development server flow with direct `webpack.watch` output into `dev/firefox`, removing `webpack-dev-server`, `write-file-webpack-plugin`, and `workbox-webpack-plugin` from the Firefox fork toolchain.
 - Removed the unused SASS and SVG-component loader chain from the Firefox fork, cutting `@svgr/webpack`, `babel-plugin-named-asset-import`, `resolve-url-loader`, and `sass-loader`.
 - Upgraded selected build-chain packages (`react-dev-utils`, `@babel/core`, `babel-preset-react-app`, `semver`) and adapted the webpack config to the newer helper surface without changing Firefox runtime behavior.
+- Migrated the Firefox build fully onto the webpack `5.x` / `terser-webpack-plugin 5.x` asset pipeline, replacing legacy `file-loader` and `url-loader` usage with webpack asset modules.
+- Upgraded the remaining Jest toolchain from `29.x` to `30.x`, aligned the explicit `jest-circus` runner path, and kept the Firefox test suite green after the upgrade.
+- Added targeted dependency overrides plus non-breaking audit fixes so the Firefox fork now validates with `npm audit` at `0` known vulnerabilities in the current lockfile.
+- Removed the last dead `webpack-dev-server` and `contentScript` entry wiring from the Firefox webpack config so the build graph now matches the shipped Firefox-only package layout.
