@@ -47,6 +47,8 @@
 - Removed unused legacy build-chain packages tied to the previous dev-server/SASS/SVG pipeline.
 - Simplified the Firefox CSS pipeline by removing the legacy PostCSS/CSS minification chain and upgrading `css-loader` out of the vulnerable `4.x` range.
 - Removed unused Yarn Plug'n'Play integration from the Firefox build configuration and toolchain dependencies.
+- Removed legacy Jest watch/typeahead and direct resolve dependencies that were no longer needed by the Firefox fork's test runner.
+- Removed the obsolete `react-app-polyfill/jsdom` test setup dependency from the Jest configuration.
 
 ### Firefox-Only Fork Adjustments
 
