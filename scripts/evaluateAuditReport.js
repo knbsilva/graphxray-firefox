@@ -30,8 +30,8 @@ console.log(`high: ${high}`);
 console.log(`moderate: ${moderate}`);
 console.log(`low: ${low}`);
 
-if (critical > 0 || high > 0) {
+if (critical > 0 || high > 0 || moderate > 0) {
   throw new Error(
-    `Production dependency audit failed: ${critical} critical and ${high} high vulnerabilities remain.`
+    `Production dependency audit failed: ${critical} critical, ${high} high, and ${moderate} moderate vulnerabilities remain.`
   );
 }

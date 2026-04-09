@@ -172,3 +172,5 @@
 - Tightened diagnostic-session handling so disabling `Diagnostic Mode` purges the active diagnostic log set instead of leaving previously captured logs persisted in the session snapshot.
 - Added regression tests for secure download behavior so canceling the Firefox save dialog no longer regresses into an automatic anchor-based fallback download.
 - Upgraded `react-syntax-highlighter` and switched `CodeView` to the explicit highlight.js entrypoint, removing the remaining moderate production audit findings tied to `prismjs` / `refractor`.
+- Added structured `dataClassification` metadata to summary exports and diagnostic entries so redacted vs summary-safe artifacts are explicitly labeled in the exported JSON.
+- Tightened the production dependency-audit gate again so CI now fails on `moderate` runtime vulnerabilities too, not just `high` and `critical`.

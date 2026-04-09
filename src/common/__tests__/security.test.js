@@ -1,6 +1,7 @@
 import {
   DEFAULT_EXPORT_SANITIZATION_MODE,
   buildExportArtifact,
+  getExportDataClassification,
   normalizeExportSanitizationMode,
   redactSensitiveText,
   redactSensitiveValue,
@@ -54,6 +55,11 @@ describe("security helpers", () => {
     const parsed = JSON.parse(artifact.content);
     expect(parsed.exportMode).toBe("summary");
     expect(parsed.kind).toBe("snippet-summary");
+    expect(parsed.dataClassification).toEqual({
+      kind: "snippet-summary",
+      level: "summary-safe",
+      handling: "summary",
+    });
     expect(parsed.url).toContain("[REDACTED_GUID]");
     expect(parsed.rawContent).toBeUndefined();
   });
@@ -77,5 +83,18 @@ describe("security helpers", () => {
     expect(redacted.owner).toBe("[REDACTED_EMAIL]");
     expect(redacted.members[0]).toBe("[REDACTED_GUID]");
     expect(redacted.members[1].access_token).toBe("[REDACTED]");
+  });
+
+  it("classifies raw and redacted exports consistently", () => {
+    expect(getExportDataClassification("raw")).toEqual({
+      kind: "export-artifact",
+      level: "sensitive",
+      handling: "raw",
+    });
+    expect(getExportDataClassification("redacted", "diagnostic-log")).toEqual({
+      kind: "diagnostic-log",
+      level: "sensitive",
+      handling: "redacted",
+    });
   });
 });

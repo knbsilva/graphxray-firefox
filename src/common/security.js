@@ -1,6 +1,20 @@
 const DEBUG_LOGGING_STORAGE_KEY = "graphxrayDebugLogging";
 const EXPORT_SANITIZATION_MODES = ["raw", "redacted", "summary"];
 const DEFAULT_EXPORT_SANITIZATION_MODE = "redacted";
+const EXPORT_DATA_CLASSIFICATIONS = {
+  raw: {
+    level: "sensitive",
+    handling: "raw",
+  },
+  redacted: {
+    level: "sensitive",
+    handling: "redacted",
+  },
+  summary: {
+    level: "summary-safe",
+    handling: "summary",
+  },
+};
 
 const REDACTION_PATTERNS = [
   {
@@ -58,6 +72,17 @@ const normalizeExportSanitizationMode = (value) =>
     ? value
     : DEFAULT_EXPORT_SANITIZATION_MODE;
 
+const getExportDataClassification = (
+  mode = DEFAULT_EXPORT_SANITIZATION_MODE,
+  kind = "export-artifact"
+) => {
+  const normalizedMode = normalizeExportSanitizationMode(mode);
+  return {
+    kind,
+    ...EXPORT_DATA_CLASSIFICATIONS[normalizedMode],
+  };
+};
+
 const tryParseJsonContent = (content) => {
   if (typeof content !== "string") {
     return {
@@ -92,6 +117,9 @@ const buildExportArtifact = ({
         redactSensitiveValue({
           generatedAt: new Date().toISOString(),
           exportMode: normalizedMode,
+          dataClassification:
+            summary.dataClassification ||
+            getExportDataClassification(normalizedMode, summary.kind),
           ...summary,
         }),
         null,
@@ -99,6 +127,7 @@ const buildExportArtifact = ({
       ),
       extension: "json",
       mimeType: "application/json",
+      dataClassification: getExportDataClassification(normalizedMode, summary.kind),
     };
   }
 
@@ -110,6 +139,7 @@ const buildExportArtifact = ({
         : redactSensitiveText(rawContent),
       extension: parsed.ok ? "json" : rawExtension,
       mimeType: parsed.ok ? "application/json" : rawMimeType,
+      dataClassification: getExportDataClassification(normalizedMode),
     };
   }
 
@@ -117,6 +147,7 @@ const buildExportArtifact = ({
     content: rawContent,
     extension: rawExtension,
     mimeType: rawMimeType,
+    dataClassification: getExportDataClassification(normalizedMode),
   };
 };
 
@@ -192,7 +223,9 @@ export {
   DEFAULT_EXPORT_SANITIZATION_MODE,
   DEBUG_LOGGING_STORAGE_KEY,
   EXPORT_SANITIZATION_MODES,
+  EXPORT_DATA_CLASSIFICATIONS,
   buildExportArtifact,
+  getExportDataClassification,
   normalizeExportSanitizationMode,
   redactSensitiveText,
   redactSensitiveValue,

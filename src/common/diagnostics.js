@@ -1,4 +1,8 @@
-import { redactSensitiveText, redactSensitiveValue } from "./security.js";
+import {
+  getExportDataClassification,
+  redactSensitiveText,
+  redactSensitiveValue,
+} from "./security.js";
 
 export const DIAGNOSTIC_MODE_STORAGE_KEY = "graphxrayDiagnosticMode";
 export const DIAGNOSTIC_LOG_MESSAGE_TYPE = "DIAGNOSTIC_LOG";
@@ -43,5 +47,6 @@ export const buildDiagnosticEntry = ({
   source,
   event,
   level,
+  classification: getExportDataClassification("redacted", "diagnostic-log"),
   details: redactSensitiveValue(details),
 });

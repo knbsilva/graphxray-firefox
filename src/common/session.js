@@ -1,6 +1,7 @@
 import { downloadFile as downloadExtensionFile } from "./extensionApi.js";
 import {
   buildExportArtifact,
+  getExportDataClassification,
   normalizeExportSanitizationMode,
   warnLog,
 } from "./security.js";
@@ -146,6 +147,10 @@ const buildDiagnosticExportPayload = (
   const normalizedMode = normalizeExportSanitizationMode(exportSanitizationMode);
   const summaryPayload = {
     generatedAt: new Date().toISOString(),
+    dataClassification: getExportDataClassification(
+      normalizedMode,
+      "diagnostic-export"
+    ),
     userAgent: navigator.userAgent,
     modes: normalizedSession.modes,
     updatedAt: normalizedSession.updatedAt,
