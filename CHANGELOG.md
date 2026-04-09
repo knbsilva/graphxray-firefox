@@ -168,3 +168,4 @@
 - Reduced the runtime dependency surface so the Firefox package keeps only UI/runtime libraries in `dependencies`, while CRA/webpack/jest/eslint tooling now lives in `devDependencies`.
 - Removed unused direct packages `prompts` and `prism-react-renderer` from the Firefox fork dependency graph.
 - Added an explicit `check:security-posture` validator for the Firefox manifest and package dependency boundaries, and wired it into packaging and CI.
+- Hardened the dependency-audit workflow so it installs with `--ignore-scripts`, always uploads the JSON report, and now fails explicitly when production-critical or production-high vulnerabilities remain.

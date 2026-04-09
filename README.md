@@ -187,6 +187,10 @@ This is the folder you should use for temporary loading in Firefox when you want
 
 Runs a production-focused dependency audit (`npm audit --omit=dev`) against the current lockfile.
 
+### `npm run audit:report`
+
+Evaluates a saved `npm audit --omit=dev --json` report and fails when production `critical` or `high` vulnerabilities remain.
+
 The Firefox fork now keeps only runtime UI libraries in `dependencies`; the CRA/webpack/jest/eslint toolchain lives in `devDependencies` so production-oriented audits and supply-chain review can focus on what actually ships with the extension.
 
 ### `npm run check:security-posture`

@@ -20,6 +20,7 @@
     "package:firefox": "node scripts/package.js --browser=firefox",
     "audit:prod": "npm audit --omit=dev",
     "audit:prod:json": "npm audit --omit=dev --json",
+    "audit:report": "node scripts/evaluateAuditReport.js",
     "test": "node scripts/test.js"
   },
   "eslintConfig": {
