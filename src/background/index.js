@@ -1,5 +1,8 @@
 import {
+  clearCapturedGraphXRayData,
+  CLEAR_CAPTURED_DATA_ON_STARTUP_STORAGE_KEY,
   getGraphXRaySession,
+  getClearCapturedDataOnStartup,
   getDiagnosticModeEnabled,
   getObjectFromLocalStorage,
   getPersistSessionData,
@@ -100,6 +103,7 @@ export async function init() {
   let requestBodies = [];
   let requestBodyWriteQueue = Promise.resolve();
   let requestBodyListenerScope = "uninitialized";
+  let clearCapturedDataOnStartup = await getClearCapturedDataOnStartup();
   let diagnosticModeEnabled = await getDiagnosticModeEnabled();
   let persistSessionData = await getPersistSessionData();
   const initialSession = await getGraphXRaySession();
@@ -362,6 +366,18 @@ export async function init() {
   extensionApi.storage?.onChanged?.addListener((changes, areaName) => {
     if (
       areaName === "local" &&
+      Object.prototype.hasOwnProperty.call(
+        changes,
+        CLEAR_CAPTURED_DATA_ON_STARTUP_STORAGE_KEY
+      )
+    ) {
+      clearCapturedDataOnStartup = Boolean(
+        changes[CLEAR_CAPTURED_DATA_ON_STARTUP_STORAGE_KEY]?.newValue
+      );
+    }
+
+    if (
+      areaName === "local" &&
       Object.prototype.hasOwnProperty.call(changes, DIAGNOSTIC_MODE_STORAGE_KEY)
     ) {
       diagnosticModeEnabled = Boolean(
@@ -423,6 +439,16 @@ export async function init() {
     emitDiagnosticLog("background_installed", {
       reason: details?.reason,
     });
+  });
+
+  extensionApi.runtime?.onStartup?.addListener(async () => {
+    if (!clearCapturedDataOnStartup) {
+      return;
+    }
+
+    requestBodies = [];
+    await clearCapturedGraphXRayData();
+    emitDiagnosticLog("captured_data_cleared_on_startup");
   });
 
   // Send request body data to devtools when available

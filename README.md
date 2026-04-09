@@ -171,11 +171,11 @@ In the project directory, you can run:
 
 ### `npm start`
 
-Builds the Firefox development output into `dev/firefox`.
+Watches the Firefox sources and rewrites the development output into `dev/firefox`.
 
 After running it, open `about:debugging#/runtime/this-firefox`, choose `Load Temporary Add-on`, and select the generated `manifest.json` from `dev/firefox`.
 
-The development build refreshes as you edit files, and build/lint errors are shown in the terminal.
+This Firefox-only development flow no longer starts a local webpack dev server. Rebuilds are written directly to disk, and build/lint errors are shown in the terminal.
 
 ### `npm run build`
 
@@ -225,6 +225,7 @@ Runs a repository-local validation that enforces key Firefox security invariants
 - In `Memory only` mode, new captures stay in the current DevTools session and are not mirrored into persisted extension storage for the standalone dashboard.
 - In `Memory only` mode, the short-lived request-body correlation cache is also cleared from persisted storage.
 - Persisted session retention can be set from the options page to reduce how long captured data remains in local extension storage.
+- You can also enable `Clear captured data when Firefox starts` to purge the persisted session snapshot and request-body cache on browser startup while keeping your safer preferences intact.
 - In `Local only` mode, Graph X-Ray does not submit captured request payloads to the external DevX snippet service.
 - If you enable external snippets, request payload content for supported languages can be sent to the DevX endpoint for snippet generation.
 - Disabling external snippets or clearing the local cache removes the optional DevX host permission again in Firefox.

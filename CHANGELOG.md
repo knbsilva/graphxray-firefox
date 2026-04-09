@@ -174,3 +174,7 @@
 - Upgraded `react-syntax-highlighter` and switched `CodeView` to the explicit highlight.js entrypoint, removing the remaining moderate production audit findings tied to `prismjs` / `refractor`.
 - Added structured `dataClassification` metadata to summary exports and diagnostic entries so redacted vs summary-safe artifacts are explicitly labeled in the exported JSON.
 - Tightened the production dependency-audit gate again so CI now fails on `moderate` runtime vulnerabilities too, not just `high` and `critical`.
+- Added a `Clear captured data when Firefox starts` control that clears the persisted session snapshot and request-body correlation cache on browser startup without wiping the safer preference defaults.
+- Replaced the Firefox development server flow with direct `webpack.watch` output into `dev/firefox`, removing `webpack-dev-server`, `write-file-webpack-plugin`, and `workbox-webpack-plugin` from the Firefox fork toolchain.
+- Removed the unused SASS and SVG-component loader chain from the Firefox fork, cutting `@svgr/webpack`, `babel-plugin-named-asset-import`, `resolve-url-loader`, and `sass-loader`.
+- Upgraded selected build-chain packages (`react-dev-utils`, `@babel/core`, `babel-preset-react-app`, `semver`) and adapted the webpack config to the newer helper surface without changing Firefox runtime behavior.

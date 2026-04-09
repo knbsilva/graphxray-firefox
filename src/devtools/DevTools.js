@@ -22,12 +22,14 @@ import {
 } from "../common/extensionApi.js";
 import {
   ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY,
+  CLEAR_CAPTURED_DATA_ON_STARTUP_STORAGE_KEY,
   EXTERNAL_SNIPPETS_ACKNOWLEDGED_STORAGE_KEY,
   EXPORT_SANITIZATION_MODE_STORAGE_KEY,
   PERSIST_SESSION_DATA_STORAGE_KEY,
   SESSION_RETENTION_MS_STORAGE_KEY,
   SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY,
   ULTRA_XRAY_ACKNOWLEDGED_STORAGE_KEY,
+  getClearCapturedDataOnStartup,
   getExportSanitizationMode,
   getAllowExternalSnippets,
   getExternalSnippetsAcknowledged,
@@ -99,6 +101,7 @@ class DevTools extends React.Component {
       allowExternalSnippets: false,
       captureConsentAccepted: false,
       capturePaused: false,
+      clearCapturedDataOnStartup: false,
       externalSnippetsAcknowledged: false,
       stack: [],
       diagnosticLogs: [],
@@ -118,6 +121,7 @@ class DevTools extends React.Component {
     await Promise.all([
       this.hydrateSessionFromStorage(),
       this.hydrateCaptureConsent(),
+      this.hydrateStartupClearSetting(),
       this.hydrateExternalSnippetSetting(),
       this.hydrateExternalSnippetAcknowledgement(),
       this.hydrateExportSanitizationMode(),
@@ -170,6 +174,12 @@ class DevTools extends React.Component {
   hydrateCaptureConsent = async () => {
     this.setState({
       captureConsentAccepted: await getSensitiveCaptureConsentAccepted(),
+    });
+  };
+
+  hydrateStartupClearSetting = async () => {
+    this.setState({
+      clearCapturedDataOnStartup: await getClearCapturedDataOnStartup(),
     });
   };
 
@@ -293,6 +303,7 @@ class DevTools extends React.Component {
       allowExternalSnippets: session.modes.allowExternalSnippets,
       captureConsentAccepted: session.modes.captureConsentAccepted,
       capturePaused: session.modes.capturePaused,
+      clearCapturedDataOnStartup: session.modes.clearCapturedDataOnStartup,
       externalSnippetsAcknowledged: session.modes.externalSnippetsAcknowledged,
       stack: session.stack,
       diagnosticLogs: session.diagnosticLogs,
@@ -324,6 +335,19 @@ class DevTools extends React.Component {
           this.setState({
             allowExternalSnippets: Boolean(
               changes[ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY]?.newValue
+            ),
+          });
+        }
+
+        if (
+          Object.prototype.hasOwnProperty.call(
+            changes,
+            CLEAR_CAPTURED_DATA_ON_STARTUP_STORAGE_KEY
+          )
+        ) {
+          this.setState({
+            clearCapturedDataOnStartup: Boolean(
+              changes[CLEAR_CAPTURED_DATA_ON_STARTUP_STORAGE_KEY]?.newValue
             ),
           });
         }
@@ -427,6 +451,8 @@ class DevTools extends React.Component {
           allowExternalSnippets: nextSession.modes.allowExternalSnippets,
           captureConsentAccepted: nextSession.modes.captureConsentAccepted,
           capturePaused: nextSession.modes.capturePaused,
+          clearCapturedDataOnStartup:
+            nextSession.modes.clearCapturedDataOnStartup,
           externalSnippetsAcknowledged:
             nextSession.modes.externalSnippetsAcknowledged,
           stack: nextSession.stack,
@@ -451,6 +477,7 @@ class DevTools extends React.Component {
         allowExternalSnippets: this.state.allowExternalSnippets,
         captureConsentAccepted: this.state.captureConsentAccepted,
         capturePaused: this.state.capturePaused,
+        clearCapturedDataOnStartup: this.state.clearCapturedDataOnStartup,
         diagnosticMode: this.state.diagnosticMode,
         externalSnippetsAcknowledged: this.state.externalSnippetsAcknowledged,
         exportSanitizationMode: this.state.exportSanitizationMode,
@@ -689,6 +716,7 @@ class DevTools extends React.Component {
       {
         allowExternalSnippets: false,
         captureConsentAccepted: false,
+        clearCapturedDataOnStartup: false,
         diagnosticMode: false,
         exportSanitizationMode: DEFAULT_EXPORT_SANITIZATION_MODE,
         externalSnippetsAcknowledged: false,
@@ -1373,6 +1401,18 @@ class DevTools extends React.Component {
                 }}
               >
                 Retention: {retentionLabel}
+              </span>
+              <span
+                style={{
+                  backgroundColor: "#e2e8f0",
+                  color: "#334155",
+                  borderRadius: "999px",
+                  padding: "4px 10px",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                }}
+              >
+                Startup clear: {this.state.clearCapturedDataOnStartup ? "On" : "Off"}
               </span>
               <span
                 style={{

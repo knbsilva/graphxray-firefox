@@ -20,6 +20,8 @@ const EXTERNAL_SNIPPETS_ACKNOWLEDGED_STORAGE_KEY =
 const SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY = "graphxraySensitiveCaptureConsent";
 const EXPORT_SANITIZATION_MODE_STORAGE_KEY = "graphxrayExportSanitizationMode";
 const PERSIST_SESSION_DATA_STORAGE_KEY = "graphxrayPersistSessionData";
+const CLEAR_CAPTURED_DATA_ON_STARTUP_STORAGE_KEY =
+  "graphxrayClearCapturedDataOnStartup";
 const SESSION_RETENTION_MS_STORAGE_KEY = "graphxraySessionRetentionMs";
 const ULTRA_XRAY_ACKNOWLEDGED_STORAGE_KEY = "graphxrayUltraXRayAcknowledged";
 const LEGACY_EXTENSION_STATE = {
@@ -98,6 +100,14 @@ const getPersistSessionData = async () => {
   const value = await getObjectFromLocalStorage(PERSIST_SESSION_DATA_STORAGE_KEY);
   return value === undefined ? true : Boolean(value);
 };
+const getClearCapturedDataOnStartup = async () =>
+  Boolean(
+    await getObjectFromLocalStorage(CLEAR_CAPTURED_DATA_ON_STARTUP_STORAGE_KEY)
+  );
+const saveClearCapturedDataOnStartup = async (enabled) =>
+  await saveObjectInLocalStorage({
+    [CLEAR_CAPTURED_DATA_ON_STARTUP_STORAGE_KEY]: Boolean(enabled),
+  });
 const savePersistSessionData = async (enabled) =>
   await saveObjectInLocalStorage({
     [PERSIST_SESSION_DATA_STORAGE_KEY]: Boolean(enabled),
@@ -126,6 +136,8 @@ const getGraphXRaySession = async () => {
   const retentionMs = await getSessionRetentionMs();
   const rawSession = await getObjectFromLocalStorage(GRAPHXRAY_SESSION_STORAGE_KEY);
   const normalizedSession = normalizeSessionState(rawSession, retentionMs);
+  normalizedSession.modes.clearCapturedDataOnStartup =
+    await getClearCapturedDataOnStartup();
   normalizedSession.modes.externalSnippetsAcknowledged =
     await getExternalSnippetsAcknowledged();
   normalizedSession.modes.persistSessionData = await getPersistSessionData();
@@ -146,10 +158,17 @@ const saveGraphXRaySession = async (session) =>
   });
 const clearGraphXRaySession = async () =>
   await saveGraphXRaySession(createEmptySessionState());
+const clearCapturedGraphXRayData = async () =>
+  await saveObjectInLocalStorage({
+    ...LEGACY_EXTENSION_STATE,
+    [REQUEST_BODIES_STORAGE_KEY]: [],
+    [GRAPHXRAY_SESSION_STORAGE_KEY]: createEmptySessionState(),
+  });
 const clearGraphXRayLocalData = async () => {
   await saveObjectInLocalStorage({
     ...LEGACY_EXTENSION_STATE,
     [ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY]: false,
+    [CLEAR_CAPTURED_DATA_ON_STARTUP_STORAGE_KEY]: false,
     [DIAGNOSTIC_MODE_STORAGE_KEY]: false,
     [EXPORT_SANITIZATION_MODE_STORAGE_KEY]: "redacted",
     [EXTERNAL_SNIPPETS_ACKNOWLEDGED_STORAGE_KEY]: false,
@@ -214,6 +233,7 @@ const addKeystrokes = async (i = 1) => {
 
 export {
   ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY,
+  CLEAR_CAPTURED_DATA_ON_STARTUP_STORAGE_KEY,
   EXTERNAL_SNIPPETS_ACKNOWLEDGED_STORAGE_KEY,
   EXPORT_SANITIZATION_MODE_STORAGE_KEY,
   PERSIST_SESSION_DATA_STORAGE_KEY,
@@ -240,7 +260,9 @@ export {
   getExportSanitizationMode,
   saveExportSanitizationMode,
   getPersistSessionData,
+  getClearCapturedDataOnStartup,
   savePersistSessionData,
+  saveClearCapturedDataOnStartup,
   getSessionRetentionMs,
   saveSessionRetentionMs,
   getUltraXRayAcknowledged,
@@ -248,6 +270,7 @@ export {
   getGraphXRaySession,
   saveGraphXRaySession,
   clearGraphXRaySession,
+  clearCapturedGraphXRayData,
   clearGraphXRayLocalData,
   addClicks,
   addConcepts,

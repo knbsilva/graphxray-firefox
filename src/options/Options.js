@@ -11,6 +11,7 @@ import {
 } from "@fluentui/react";
 import { isFirefoxBrowser } from "../common/extensionApi.js";
 import {
+  getClearCapturedDataOnStartup,
   getExternalSnippetsAcknowledged,
   getExportSanitizationMode,
   getAllowExternalSnippets,
@@ -20,6 +21,7 @@ import {
   getUltraXRayAcknowledged,
   saveExportSanitizationMode,
   saveAllowExternalSnippets,
+  saveClearCapturedDataOnStartup,
   saveExternalSnippetsAcknowledged,
   savePersistSessionData,
   saveSessionRetentionMs,
@@ -50,6 +52,7 @@ class Options extends React.Component {
       stack: [],
       allowExternalSnippets: false,
       captureConsentAccepted: false,
+      clearCapturedDataOnStartup: false,
       externalSnippetsAcknowledged: false,
       exportSanitizationMode: DEFAULT_EXPORT_SANITIZATION_MODE,
       persistSessionData: true,
@@ -62,6 +65,7 @@ class Options extends React.Component {
     this.setState({
       allowExternalSnippets: await getAllowExternalSnippets(),
       captureConsentAccepted: await getSensitiveCaptureConsentAccepted(),
+      clearCapturedDataOnStartup: await getClearCapturedDataOnStartup(),
       externalSnippetsAcknowledged: await getExternalSnippetsAcknowledged(),
       exportSanitizationMode: await getExportSanitizationMode(),
       persistSessionData: await getPersistSessionData(),
@@ -157,6 +161,14 @@ class Options extends React.Component {
     await savePersistSessionData(enabled);
     this.setState({
       persistSessionData: enabled,
+    });
+  };
+
+  onClearCapturedDataOnStartupChange = async (_, checked) => {
+    const enabled = Boolean(checked);
+    await saveClearCapturedDataOnStartup(enabled);
+    this.setState({
+      clearCapturedDataOnStartup: enabled,
     });
   };
 
@@ -334,6 +346,20 @@ class Options extends React.Component {
                   the selected idle period. Shorter retention reduces local
                   exposure of captured Microsoft 365 administrative data.
                 </p>
+                <div style={{ marginTop: "16px" }}>
+                  <Toggle
+                    label="Clear captured data when Firefox starts"
+                    checked={this.state.clearCapturedDataOnStartup}
+                    onChange={this.onClearCapturedDataOnStartupChange}
+                    onText="Enabled"
+                    offText="Disabled"
+                  />
+                  <p style={{ marginBottom: 0, color: "#475569" }}>
+                    When enabled, Graph X-Ray clears the persisted session
+                    snapshot and request-body correlation cache on browser
+                    startup while preserving your consent and snippet settings.
+                  </p>
+                </div>
               </div>
               <div
                 style={{

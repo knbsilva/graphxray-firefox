@@ -22,6 +22,7 @@ const DEFAULT_SESSION_MODES = {
   allowExternalSnippets: false,
   captureConsentAccepted: false,
   capturePaused: false,
+  clearCapturedDataOnStartup: false,
   diagnosticMode: false,
   externalSnippetsAcknowledged: false,
   exportSanitizationMode: "redacted",

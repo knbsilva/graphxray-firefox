@@ -25,6 +25,7 @@ import {
 } from "../common/diagnostics.js";
 import {
   ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY,
+  CLEAR_CAPTURED_DATA_ON_STARTUP_STORAGE_KEY,
   EXTERNAL_SNIPPETS_ACKNOWLEDGED_STORAGE_KEY,
   EXPORT_SANITIZATION_MODE_STORAGE_KEY,
   PERSIST_SESSION_DATA_STORAGE_KEY,
@@ -32,6 +33,7 @@ import {
   SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY,
   ULTRA_XRAY_ACKNOWLEDGED_STORAGE_KEY,
   clearGraphXRayLocalData,
+  getClearCapturedDataOnStartup,
   getExportSanitizationMode,
   getGraphXRaySession,
   getExternalSnippetsAcknowledged,
@@ -127,6 +129,7 @@ class Dashboard extends React.Component {
   loadSession = async () => {
     const session = normalizeSessionState(await getGraphXRaySession());
     const persistSessionData = await getPersistSessionData();
+    const clearCapturedDataOnStartup = await getClearCapturedDataOnStartup();
     const sessionRetentionMs = await getSessionRetentionMs();
     session.modes.allowExternalSnippets = await getAllowExternalSnippets();
     session.modes.captureConsentAccepted =
@@ -134,6 +137,7 @@ class Dashboard extends React.Component {
     session.modes.externalSnippetsAcknowledged =
       await getExternalSnippetsAcknowledged();
     session.modes.exportSanitizationMode = await getExportSanitizationMode();
+    session.modes.clearCapturedDataOnStartup = clearCapturedDataOnStartup;
     session.modes.persistSessionData = persistSessionData;
     session.modes.sessionRetentionMs = sessionRetentionMs;
     session.modes.ultraXRayAcknowledged = await getUltraXRayAcknowledged();
@@ -219,6 +223,17 @@ class Dashboard extends React.Component {
           ) {
             session.modes.externalSnippetsAcknowledged = Boolean(
               changes[EXTERNAL_SNIPPETS_ACKNOWLEDGED_STORAGE_KEY]?.newValue
+            );
+          }
+
+          if (
+            Object.prototype.hasOwnProperty.call(
+              changes,
+              CLEAR_CAPTURED_DATA_ON_STARTUP_STORAGE_KEY
+            )
+          ) {
+            session.modes.clearCapturedDataOnStartup = Boolean(
+              changes[CLEAR_CAPTURED_DATA_ON_STARTUP_STORAGE_KEY]?.newValue
             );
           }
 
@@ -807,6 +822,9 @@ class Dashboard extends React.Component {
                   </span>
                   <span className="DashboardMetaChip">
                     Retention: {formatRetentionLabel(session.modes.sessionRetentionMs)}
+                  </span>
+                  <span className="DashboardMetaChip">
+                    Startup clear: {session.modes.clearCapturedDataOnStartup ? "On" : "Off"}
                   </span>
                   <span className="DashboardMetaChip">
                     Ultra X-Ray ack: {session.modes.ultraXRayAcknowledged ? "Accepted" : "Required"}
