@@ -7,7 +7,7 @@
     "@fluentui/react": "^8.67.2",
     "react": "^17.0.2",
     "react-dom": "^17.0.2",
-    "react-syntax-highlighter": "^15.5.0"
+    "react-syntax-highlighter": "^16.1.1"
   },
   "scripts": {
     "start": "node --openssl-legacy-provider scripts/start.js --browser=firefox",
@@ -71,11 +71,11 @@
     "eslint-plugin-import": "^2.22.1",
     "eslint-plugin-jest": "^24.1.0",
     "eslint-plugin-jsx-a11y": "^6.3.1",
+    "eslint-plugin-prettier": "^4.0.0",
     "eslint-plugin-react": "^7.21.5",
     "eslint-plugin-react-hooks": "^4.2.0",
     "eslint-plugin-testing-library": "^3.9.2",
     "eslint-webpack-plugin": "^2.1.0",
-    "eslint-plugin-prettier": "^4.0.0",
     "file-loader": "6.1.1",
     "fs-extra": "^9.0.1",
     "html-webpack-plugin": "4.5.0",

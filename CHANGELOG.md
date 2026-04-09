@@ -170,3 +170,5 @@
 - Added an explicit `check:security-posture` validator for the Firefox manifest and package dependency boundaries, and wired it into packaging and CI.
 - Hardened the dependency-audit workflow so it installs with `--ignore-scripts`, always uploads the JSON report, and now fails explicitly when production-critical or production-high vulnerabilities remain.
 - Tightened diagnostic-session handling so disabling `Diagnostic Mode` purges the active diagnostic log set instead of leaving previously captured logs persisted in the session snapshot.
+- Added regression tests for secure download behavior so canceling the Firefox save dialog no longer regresses into an automatic anchor-based fallback download.
+- Upgraded `react-syntax-highlighter` and switched `CodeView` to the explicit highlight.js entrypoint, removing the remaining moderate production audit findings tied to `prismjs` / `refractor`.

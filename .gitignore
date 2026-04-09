@@ -20,6 +20,7 @@ yarn-debug.log*
 yarn-error.log*
 UPSTREAM_ISSUE_DRAFT.md
 .tools/
+.npm-cache/
 GraphXRay*.json
 GraphXRay*.ps1
 GraphXRay*.py
