@@ -165,3 +165,6 @@
 - Added reconciliation on load so Graph X-Ray disables `Ultra X-Ray` or external snippets if their optional Firefox host permissions were revoked outside the extension UI.
 - Changed the release workflow to publish exactly the validated package artifacts from the build job instead of rebuilding during release publication.
 - Reduced GitHub Actions default write scope by leaving `contents: write` only on the manual release job.
+- Reduced the runtime dependency surface so the Firefox package keeps only UI/runtime libraries in `dependencies`, while CRA/webpack/jest/eslint tooling now lives in `devDependencies`.
+- Removed unused direct packages `prompts` and `prism-react-renderer` from the Firefox fork dependency graph.
+- Added an explicit `check:security-posture` validator for the Firefox manifest and package dependency boundaries, and wired it into packaging and CI.

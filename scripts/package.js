@@ -6,6 +6,7 @@ const { copyFileSync } = require('fs');
 const { spawnSync } = require('child_process');
 const { syncManifestVersion } = require('./syncManifestVersion');
 const { validatePackageContents } = require('./validatePackageContents');
+const { validateSecurityPosture } = require('./validateSecurityPosture');
 
 const projectRoot = path.resolve(__dirname, '..');
 const buildOutputRoot = path.join(projectRoot, 'build');
@@ -20,6 +21,7 @@ if (rawTarget !== 'firefox') {
 }
 
 const version = syncManifestVersion();
+validateSecurityPosture();
 fs.mkdirSync(packagesDir, { recursive: true });
 clearPackagesDirectory();
 

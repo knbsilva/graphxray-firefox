@@ -187,6 +187,17 @@ This is the folder you should use for temporary loading in Firefox when you want
 
 Runs a production-focused dependency audit (`npm audit --omit=dev`) against the current lockfile.
 
+The Firefox fork now keeps only runtime UI libraries in `dependencies`; the CRA/webpack/jest/eslint toolchain lives in `devDependencies` so production-oriented audits and supply-chain review can focus on what actually ships with the extension.
+
+### `npm run check:security-posture`
+
+Runs a repository-local validation that enforces key Firefox security invariants, including:
+
+- required vs optional host permission boundaries
+- no Firefox content script regression
+- allowed extension permission set
+- runtime-vs-tooling dependency separation
+
 ## Snippet Behavior
 
 - External snippet generation is disabled by default. Enable it from the Graph X-Ray options page if you want to allow request payloads to be sent to the DevX snippet service.
