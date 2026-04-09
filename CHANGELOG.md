@@ -40,6 +40,14 @@
 - Created packaged artifacts in `build/packages`.
 - Updated the GitHub Actions workflow to work with split manifests and packaged release assets.
 
+### Security Hardening Continuation
+
+- Added `Clear captured data when Firefox starts` so the persisted session snapshot and request-body cache can be purged automatically on browser startup.
+- Replaced the old Firefox `webpack-dev-server` flow with direct `webpack.watch` output into `dev/firefox`.
+- Removed unused legacy build-chain packages tied to the previous dev-server/SASS/SVG pipeline.
+- Simplified the Firefox CSS pipeline by removing the legacy PostCSS/CSS minification chain and upgrading `css-loader` out of the vulnerable `4.x` range.
+- Removed unused Yarn Plug'n'Play integration from the Firefox build configuration and toolchain dependencies.
+
 ### Firefox-Only Fork Adjustments
 
 - Reoriented the repository defaults toward Firefox.

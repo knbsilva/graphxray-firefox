@@ -176,6 +176,7 @@ Watches the Firefox sources and rewrites the development output into `dev/firefo
 After running it, open `about:debugging#/runtime/this-firefox`, choose `Load Temporary Add-on`, and select the generated `manifest.json` from `dev/firefox`.
 
 This Firefox-only development flow no longer starts a local webpack dev server. Rebuilds are written directly to disk, and build/lint errors are shown in the terminal.
+The Firefox fork also now bundles styles without the legacy CRA PostCSS/PnP pipeline, reducing the build surface for a latest-Firefox target.
 
 ### `npm run build`
 
