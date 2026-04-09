@@ -6,21 +6,20 @@ The Firefox fork already generates an unsigned `.xpi` at `build/packages/graphxr
 
 ### Planned procedure
 
-1. Review the Firefox manifest and add `browser_specific_settings.gecko.data_collection_permissions`.
-2. Decide the Firefox support strategy:
-   - Require Firefox `140.0+` and use the built-in Firefox data consent flow.
-   - Or keep support for older Firefox versions and implement an in-extension consent flow.
-3. Document the external data flow clearly.
+1. Keep the privacy/disclosure text aligned with the shipped security model.
+   - The manifest already declares `browser_specific_settings.gecko.data_collection_permissions`.
+   - The repo already uses explicit in-extension consent plus optional permissions for higher-risk features.
+2. Document the external data flow clearly.
    - The extension sends request data to the DevX snippet generation endpoint in `src/common/client.js`.
    - This needs matching privacy/disclosure text for AMO submission.
-4. Prepare the AMO source submission package.
+3. Prepare the AMO source submission package.
    - Include matching source code for the submitted build.
    - Include reproducible build instructions.
-5. Create an AMO Developer Hub listing as `unlisted` / self-distributed.
-6. Upload the unsigned `.xpi` and any required source package.
-7. Resolve Mozilla review feedback if the submission is flagged for manual review.
-8. Download the signed `.xpi`.
-9. Publish the signed `.xpi` in GitHub Releases for manual Firefox installation.
+4. Create an AMO Developer Hub listing as `unlisted` / self-distributed.
+5. Upload the unsigned `.xpi` and any required source package.
+6. Resolve Mozilla review feedback if the submission is flagged for manual review.
+7. Download the signed `.xpi`.
+8. Publish the signed `.xpi` in GitHub Releases for manual Firefox installation.
 
 ### Notes
 

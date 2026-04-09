@@ -25,7 +25,6 @@ const isInteractive = process.stdout.isTTY;
 const devBuildFolder = path
   .relative(paths.appPath, paths.devAppBuild)
   .replace(/\\/g, '/');
-const isFirefoxTarget = paths.browserTarget === 'firefox';
 
 if (
   !checkRequiredFiles([
@@ -37,7 +36,6 @@ if (
     paths.appOptionsJs,
     paths.appDevToolsHtml,
     paths.appDevToolsJs,
-    ...(isFirefoxTarget ? [] : [paths.appContentScriptJs]),
   ])
 ) {
   process.exit(1);
@@ -128,23 +126,5 @@ function prepareDevOutput(copyPublicFolder) {
 }
 
 function refreshDevPublicAssets(copyPublicFolder) {
-  pruneLegacyFirefoxArtifacts(paths.devAppBuild);
   copyPublicFolder(paths.devAppBuild);
-}
-
-function pruneLegacyFirefoxArtifacts(targetDirectory) {
-  if (!isFirefoxTarget) {
-    return;
-  }
-
-  [
-    'contentScript.bundle.js',
-    'contentScript.bundle.js.map',
-    'contentScript.bundle.js.LICENSE.txt',
-  ].forEach(fileName => {
-    const filePath = path.join(targetDirectory, fileName);
-    if (fs.existsSync(filePath)) {
-      fs.rmSync(filePath, { force: true });
-    }
-  });
 }

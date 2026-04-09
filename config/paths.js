@@ -38,27 +38,22 @@ const resolveModule = (resolveFn, filePath) => {
 
 // config after eject: we're in ./config/
 const browserTarget = getBrowserTarget();
-const isFirefoxTarget = browserTarget === 'firefox';
 
 module.exports = {
   dotenv: resolveApp('.env'),
   appPath: resolveApp('.'),
   browserTarget,
-  appBuild: resolveApp(isFirefoxTarget ? 'build/firefox' : 'build/graphxray'),
-  devAppBuild: resolveApp(isFirefoxTarget ? 'dev/firefox' : 'dev'),
+  appBuild: resolveApp('build/firefox'),
+  devAppBuild: resolveApp('dev/firefox'),
   appPublic: resolveApp('public'),
-  appChromiumManifestJson: resolveApp('public/manifest.chromium.json'),
   appFirefoxManifestJson: resolveApp('public/manifest.firefox.json'),
-  manifestJson: resolveApp(
-    isFirefoxTarget ? 'public/manifest.firefox.json' : 'public/manifest.chromium.json'
-  ),
+  manifestJson: resolveApp('public/manifest.firefox.json'),
   appOptionsHtml: resolveApp('public/options.html'),
   appDevToolsHtml: resolveApp('public/devtools.html'),
   appDashboardHtml: resolveApp('public/dashboard.html'),
   appPopupHtml: resolveApp('public/popup.html'),
   appIndexJs: resolveModule(resolveApp, 'src/index'),
   appBackgroundJs: resolveModule(resolveApp, 'src/background/index'),
-  appContentScriptJs: resolveModule(resolveApp, 'src/contentScript/index'),
   appOptionsJs: resolveModule(resolveApp, 'src/options/index'),
   appDevToolsJs: resolveModule(resolveApp, 'src/devtools/index'),
   appDashboardJs: resolveModule(resolveApp, 'src/dashboard/index'),

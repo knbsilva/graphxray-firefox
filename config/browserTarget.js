@@ -1,9 +1,6 @@
 'use strict';
 
 const TARGET_ALIASES = {
-  chrome: 'chromium',
-  chromium: 'chromium',
-  edge: 'chromium',
   firefox: 'firefox',
   ff: 'firefox',
 };
@@ -19,7 +16,7 @@ function getBrowserTarget(argv = process.argv, env = process.env) {
 
   if (!target) {
     throw new Error(
-      `Unsupported browser target "${rawTarget}". Use one of: chromium, chrome, edge, firefox, ff.`
+      `Unsupported browser target "${rawTarget}". Use one of: firefox, ff.`
     );
   }
 

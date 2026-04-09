@@ -193,3 +193,6 @@
 - Upgraded the remaining Jest toolchain from `29.x` to `30.x`, aligned the explicit `jest-circus` runner path, and kept the Firefox test suite green after the upgrade.
 - Added targeted dependency overrides plus non-breaking audit fixes so the Firefox fork now validates with `npm audit` at `0` known vulnerabilities in the current lockfile.
 - Removed the last dead `webpack-dev-server` and `contentScript` entry wiring from the Firefox webpack config so the build graph now matches the shipped Firefox-only package layout.
+- Removed the unused Chromium manifest and the no-op content script source from the Firefox fork.
+- Simplified the browser-target helpers and build/path scripts so they now describe Firefox-only behavior directly.
+- Rewrote the README to match the current Firefox-only architecture, security defaults, and developer workflow.
