@@ -202,6 +202,9 @@ Runs a production-focused dependency audit (`npm audit --omit=dev`) against the 
   - `raw` to preserve captured content as-is
   - `redacted` to mask sensitive values
   - `summary` to save metadata-only JSON
+- Session persistence can be switched between `Persisted` and `Memory only`.
+- In `Memory only` mode, new captures stay in the current DevTools session and are not mirrored into persisted extension storage for the standalone dashboard.
+- Persisted session retention can be set from the options page to reduce how long captured data remains in local extension storage.
 - In `Local only` mode, Graph X-Ray does not submit captured request payloads to the external DevX snippet service.
 - If you enable external snippets, request payload content for supported languages can be sent to the DevX endpoint for snippet generation.
 - Captured exports such as `GraphXRay*.json`, `GraphXRay*.ps1`, `GraphXRay*.py`, and `.har` files should never be committed to the repository.
@@ -212,16 +215,21 @@ Runs a production-focused dependency audit (`npm audit --omit=dev`) against the 
 - Graph X-Ray does not include an analytics or telemetry SDK for usage tracking.
 - External network traffic can still happen in one explicit case: when you enable external snippet generation, supported request payloads can be sent to the Microsoft Graph DevX snippet service.
 - Treat external snippet generation as operational data transfer, not as analytics.
+- The Firefox manifest now declares this as optional data collection metadata instead of an always-on behavior.
 
 ## Session Controls
 
 - `Save script` exports the deduplicated generated snippets for the current session.
 - `Save script` follows the current export sanitization mode. `summary` exports script metadata instead of full code.
+- Clipboard copy actions for `Request`, `Response`, `Snippet`, and `Save script` follow the current export sanitization mode as well.
 - `Save logs` exports the diagnostic session when Diagnostic Mode is enabled, follows the current export sanitization mode, and asks for confirmation because the file can contain sensitive administrative data.
 - `Pause capture` / `Resume capture` controls whether new requests are appended while keeping the current session available for review and export.
 - `Clear local cache` clears the current session plus local request-body correlation cache and legacy local capture state.
 - `Clear local cache` also resets the first-use consent acknowledgement so capture stays blocked until you acknowledge it again.
 - Persisted session state is automatically purged after roughly 60 minutes of inactivity.
+- Switching persistence to `Memory only` clears the currently persisted session snapshot from extension storage.
+- The current retention window is also surfaced in the standalone dashboard summary chips.
+- DevTools now also surfaces the active persistence mode and retention window near the capture controls.
 - Individual entries can export:
   - `Request` when a request body exists, with a confirmation prompt and the selected export sanitization mode
   - `Response` when response content exists, with a confirmation prompt and the selected export sanitization mode

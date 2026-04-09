@@ -13,10 +13,14 @@ import { isFirefoxBrowser } from "../common/extensionApi.js";
 import {
   getExportSanitizationMode,
   getAllowExternalSnippets,
+  getPersistSessionData,
+  getSessionRetentionMs,
   getSensitiveCaptureConsentAccepted,
   getUltraXRayAcknowledged,
   saveExportSanitizationMode,
   saveAllowExternalSnippets,
+  savePersistSessionData,
+  saveSessionRetentionMs,
   saveSensitiveCaptureConsentAccepted,
 } from "../common/storage.js";
 import { PrimaryButton } from "@fluentui/react/lib/Button";
@@ -24,6 +28,10 @@ import {
   DEFAULT_EXPORT_SANITIZATION_MODE,
   EXPORT_SANITIZATION_MODES,
 } from "../common/security.js";
+import {
+  DEFAULT_SESSION_RETENTION_MS,
+  SESSION_RETENTION_OPTIONS,
+} from "../common/session.js";
 
 const theme = getTheme();
 class Options extends React.Component {
@@ -36,6 +44,8 @@ class Options extends React.Component {
       allowExternalSnippets: false,
       captureConsentAccepted: false,
       exportSanitizationMode: DEFAULT_EXPORT_SANITIZATION_MODE,
+      persistSessionData: true,
+      sessionRetentionMs: DEFAULT_SESSION_RETENTION_MS,
       ultraXRayAcknowledged: false,
     };
   }
@@ -45,6 +55,8 @@ class Options extends React.Component {
       allowExternalSnippets: await getAllowExternalSnippets(),
       captureConsentAccepted: await getSensitiveCaptureConsentAccepted(),
       exportSanitizationMode: await getExportSanitizationMode(),
+      persistSessionData: await getPersistSessionData(),
+      sessionRetentionMs: await getSessionRetentionMs(),
       ultraXRayAcknowledged: await getUltraXRayAcknowledged(),
     });
   }
@@ -72,6 +84,25 @@ class Options extends React.Component {
     await saveExportSanitizationMode(option.key);
     this.setState({
       exportSanitizationMode: option.key,
+    });
+  };
+
+  onSessionRetentionChange = async (_, option) => {
+    if (!option) {
+      return;
+    }
+
+    await saveSessionRetentionMs(option.key);
+    this.setState({
+      sessionRetentionMs: option.key,
+    });
+  };
+
+  onPersistSessionDataChange = async (_, checked) => {
+    const enabled = Boolean(checked);
+    await savePersistSessionData(enabled);
+    this.setState({
+      persistSessionData: enabled,
     });
   };
 
@@ -183,6 +214,58 @@ class Options extends React.Component {
                   mask sensitive tokens, emails, GUIDs, and common credential
                   fields. Summary exports save metadata-only JSON instead of the
                   full request, response, or snippet body.
+                </p>
+              </div>
+              <div
+                style={{
+                  boxShadow: theme.effects.elevation4,
+                  padding: "16px",
+                  marginBottom: "20px",
+                  borderRadius: "8px",
+                }}
+              >
+                <h3 style={{ marginTop: 0 }}>Persistence mode</h3>
+                <Toggle
+                  label="Persist session data to browser storage"
+                  checked={this.state.persistSessionData}
+                  onChange={this.onPersistSessionDataChange}
+                  onText="Persisted"
+                  offText="Memory only"
+                />
+                <p style={{ marginBottom: 0, color: "#475569" }}>
+                  When disabled, Graph X-Ray keeps new captures in the current
+                  DevTools session only. The standalone dashboard and persisted
+                  session recovery will no longer mirror new entries until
+                  persistence is enabled again.
+                </p>
+              </div>
+              <div
+                style={{
+                  boxShadow: theme.effects.elevation4,
+                  padding: "16px",
+                  marginBottom: "20px",
+                  borderRadius: "8px",
+                }}
+              >
+                <h3 style={{ marginTop: 0 }}>Local retention</h3>
+                <Dropdown
+                  label="Persisted session retention"
+                  selectedKey={this.state.sessionRetentionMs}
+                  options={SESSION_RETENTION_OPTIONS.map((retentionMs) => ({
+                    key: retentionMs,
+                    text:
+                      retentionMs === 15 * 60 * 1000
+                        ? "15 minutes"
+                        : retentionMs === 60 * 60 * 1000
+                        ? "60 minutes"
+                        : "4 hours",
+                  }))}
+                  onChange={this.onSessionRetentionChange}
+                />
+                <p style={{ marginBottom: 0, color: "#475569" }}>
+                  Persisted session state in extension storage is purged after
+                  the selected idle period. Shorter retention reduces local
+                  exposure of captured Microsoft 365 administrative data.
                 </p>
               </div>
               <div

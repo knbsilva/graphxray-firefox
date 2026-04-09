@@ -40,6 +40,19 @@ const redactSensitiveText = (value = "") => {
   return sanitized;
 };
 
+const SENSITIVE_VALUE_KEYS = new Set([
+  "access_token",
+  "refresh_token",
+  "id_token",
+  "client_secret",
+  "authorization",
+  "cookie",
+  "set-cookie",
+]);
+
+const isSensitiveObjectKey = (key = "") =>
+  SENSITIVE_VALUE_KEYS.has(String(key).trim().toLowerCase());
+
 const normalizeExportSanitizationMode = (value) =>
   EXPORT_SANITIZATION_MODES.includes(value)
     ? value
@@ -135,7 +148,9 @@ const redactSensitiveValue = (value, depth = 0) => {
     return Object.fromEntries(
       Object.entries(value).map(([key, entryValue]) => [
         key,
-        redactSensitiveValue(entryValue, depth + 1),
+        isSensitiveObjectKey(key)
+          ? "[REDACTED]"
+          : redactSensitiveValue(entryValue, depth + 1),
       ])
     );
   }

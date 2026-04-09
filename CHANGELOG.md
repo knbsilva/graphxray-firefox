@@ -144,3 +144,11 @@
 - Added a telemetry stance to the docs, a safe debugging guide, and a pull-request security checklist to reduce future regression risk.
 - Changed GitHub Actions so push/PR runs are validation-only and release publication is a manual workflow dispatch instead of an automatic mutation of `main`.
 - Added a production dependency audit script and a scheduled/manual GitHub Actions workflow that uploads an `npm audit` report artifact without silently ignoring dependency drift.
+- Aligned per-entry clipboard actions and `Copy script` with the selected export sanitization mode so raw request, response, and snippet content is no longer copied by default when sanitization is enabled.
+- Declared Firefox `data_collection_permissions` metadata so the manifest reflects that external data transfer is optional and tied to external snippet generation rather than implicit telemetry.
+- Pinned the current GitHub Actions used in build/release and dependency-audit workflows to immutable commit SHAs.
+- Wired the new unit/security test suite into the main GitHub Actions validation and release workflows.
+- Added a dedicated TruffleHog secret-scanning workflow for verified secrets on push, pull request, schedule, and manual runs.
+- Made persisted session retention configurable from the options page and surfaced the active retention window in the standalone dashboard.
+- Added an opt-in `Memory only` persistence mode that keeps new captures out of persisted extension storage and clears the stored session snapshot when the mode is enabled.
+- Surfaced the current persistence mode and retention window directly in the DevTools security/status area.

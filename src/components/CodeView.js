@@ -242,6 +242,68 @@ export const CodeView = ({
     extraParts,
   });
 
+  const getUrlCopySummary = (content) => ({
+    kind: "request-url-summary",
+    method: requestMethod,
+    url: requestUrl,
+    displayRequestUrl: content,
+    codeSource: request.codeSource || "none",
+    isUltraXRayRequest,
+  });
+
+  const getBatchRequestExportSummary = (pair, content) => ({
+    kind: "batch-request-summary",
+    batchRequestId: pair.id,
+    method: pair.request?.method || requestMethod,
+    url: pair.request?.url || requestUrl,
+    hasBody: Boolean(content && content.trim()),
+    bodyLength: content ? content.length : 0,
+  });
+
+  const getBatchResponseExportSummary = (pair, content) => ({
+    kind: "batch-response-summary",
+    batchRequestId: pair.id,
+    method: pair.request?.method || requestMethod,
+    url: pair.request?.url || requestUrl,
+    responseStatus: pair.response?.status,
+    hasResponse: Boolean(content && content.trim()),
+    responseLength: content ? content.length : 0,
+  });
+
+  const getClipboardContent = ({
+    rawContent = "",
+    summary = {},
+    rawExtension = "txt",
+    rawMimeType = "text/plain",
+  }) =>
+    buildExportArtifact({
+      rawContent,
+      mode: normalizedExportMode,
+      summary,
+      rawExtension,
+      rawMimeType,
+    }).content;
+
+  const copyArtifactToClipboard = async ({
+    rawContent = "",
+    summary = {},
+    rawExtension = "txt",
+    rawMimeType = "text/plain",
+  }) => {
+    if (!rawContent || !String(rawContent).trim()) {
+      return;
+    }
+
+    await copyToClipboard(
+      getClipboardContent({
+        rawContent,
+        summary,
+        rawExtension,
+        rawMimeType,
+      })
+    );
+  };
+
   const saveRequestToFile = async (content, suffix = "request") => {
     if (!content || !content.trim()) {
       return;
@@ -568,7 +630,10 @@ export const CodeView = ({
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  copyToClipboard(request.displayRequestUrl);
+                  copyArtifactToClipboard({
+                    rawContent: request.displayRequestUrl,
+                    summary: getUrlCopySummary(request.displayRequestUrl),
+                  });
                 }}
                 onMouseEnter={() => setHoveredButton('url-copy')}
                 onMouseLeave={() => setHoveredButton(null)}
@@ -675,7 +740,15 @@ export const CodeView = ({
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
-                              copyToClipboard(JSON.stringify(pair.request, null, 2));
+                              copyArtifactToClipboard({
+                                rawContent: JSON.stringify(pair.request, null, 2),
+                                summary: getBatchRequestExportSummary(
+                                  pair,
+                                  JSON.stringify(pair.request, null, 2)
+                                ),
+                                rawExtension: "json",
+                                rawMimeType: "application/json",
+                              });
                             }}
                             onMouseEnter={() => setHoveredButton(`batch-req-${index}`)}
                             onMouseLeave={() => setHoveredButton(null)}
@@ -733,7 +806,15 @@ export const CodeView = ({
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                copyToClipboard(pair.responseBody);
+                                copyArtifactToClipboard({
+                                  rawContent: pair.responseBody,
+                                  summary: getBatchResponseExportSummary(
+                                    pair,
+                                    pair.responseBody
+                                  ),
+                                  rawExtension: "json",
+                                  rawMimeType: "application/json",
+                                });
                               }}
                               onMouseEnter={() => setHoveredButton(`batch-resp-${index}`)}
                               onMouseLeave={() => setHoveredButton(null)}
@@ -833,7 +914,12 @@ export const CodeView = ({
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            copyToClipboard(request.requestBody);
+                            copyArtifactToClipboard({
+                              rawContent: request.requestBody,
+                              summary: getRequestExportSummary(request.requestBody),
+                              rawExtension: "json",
+                              rawMimeType: "application/json",
+                            });
                           }}
                           onMouseEnter={() => setHoveredButton('body-copy')}
                           onMouseLeave={() => setHoveredButton(null)}
@@ -935,7 +1021,14 @@ export const CodeView = ({
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            copyToClipboard(request.responseContent);
+                            copyArtifactToClipboard({
+                              rawContent: request.responseContent,
+                              summary: getResponseExportSummary(
+                                request.responseContent
+                              ),
+                              rawExtension: "json",
+                              rawMimeType: "application/json",
+                            });
                           }}
                           onMouseEnter={() => setHoveredButton('response-copy')}
                           onMouseLeave={() => setHoveredButton(null)}
@@ -1077,7 +1170,10 @@ export const CodeView = ({
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              copyToClipboard(request.code);
+              copyArtifactToClipboard({
+                rawContent: request.code,
+                summary: getSnippetExportSummary(request.code),
+              });
             }}
             onMouseEnter={() => setHoveredButton('code-copy')}
             onMouseLeave={() => setHoveredButton(null)}
@@ -1202,7 +1298,15 @@ export const CodeView = ({
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    copyToClipboard(snippet.code);
+                    copyArtifactToClipboard({
+                      rawContent: snippet.code,
+                      summary: getSnippetExportSummary(
+                        snippet.code,
+                        snippet.url,
+                        snippet.method,
+                        [snippet.id]
+                      ),
+                    });
                   }}
                   onMouseEnter={() => setHoveredButton(`batch-code-${index}`)}
                   onMouseLeave={() => setHoveredButton(null)}

@@ -23,11 +23,15 @@ import {
 import {
   ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY,
   EXPORT_SANITIZATION_MODE_STORAGE_KEY,
+  PERSIST_SESSION_DATA_STORAGE_KEY,
+  SESSION_RETENTION_MS_STORAGE_KEY,
   SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY,
   ULTRA_XRAY_ACKNOWLEDGED_STORAGE_KEY,
   getExportSanitizationMode,
   getAllowExternalSnippets,
   getGraphXRaySession,
+  getPersistSessionData,
+  getSessionRetentionMs,
   getSensitiveCaptureConsentAccepted,
   getUltraXRayAcknowledged,
   clearGraphXRayLocalData,
@@ -91,6 +95,8 @@ class DevTools extends React.Component {
       diagnosticLogs: [],
       diagnosticMode,
       exportSanitizationMode: DEFAULT_EXPORT_SANITIZATION_MODE,
+      persistSessionData: true,
+      sessionRetentionMs: 60 * 60 * 1000,
       snippetLanguage: "powershell",
       ultraXRayAcknowledged: false,
       ultraXRayMode,
@@ -104,6 +110,8 @@ class DevTools extends React.Component {
     this.hydrateCaptureConsent();
     this.hydrateExternalSnippetSetting();
     this.hydrateExportSanitizationMode();
+    this.hydratePersistenceMode();
+    this.hydrateSessionRetention();
     this.hydrateUltraXRayAcknowledgement();
     this.syncDiagnosticModeState();
     this.addSessionStorageListener();
@@ -143,6 +151,18 @@ class DevTools extends React.Component {
   hydrateCaptureConsent = async () => {
     this.setState({
       captureConsentAccepted: await getSensitiveCaptureConsentAccepted(),
+    });
+  };
+
+  hydrateSessionRetention = async () => {
+    this.setState({
+      sessionRetentionMs: await getSessionRetentionMs(),
+    });
+  };
+
+  hydratePersistenceMode = async () => {
+    this.setState({
+      persistSessionData: await getPersistSessionData(),
     });
   };
 
@@ -217,6 +237,8 @@ class DevTools extends React.Component {
       diagnosticLogs: session.diagnosticLogs,
       diagnosticMode: session.modes.diagnosticMode,
       exportSanitizationMode: session.modes.exportSanitizationMode,
+      persistSessionData: session.modes.persistSessionData,
+      sessionRetentionMs: session.modes.sessionRetentionMs,
       snippetLanguage: session.modes.snippetLanguage,
       ultraXRayAcknowledged: session.modes.ultraXRayAcknowledged,
       ultraXRayMode: session.modes.ultraXRayMode,
@@ -255,6 +277,32 @@ class DevTools extends React.Component {
             exportSanitizationMode: normalizeExportSanitizationMode(
               changes[EXPORT_SANITIZATION_MODE_STORAGE_KEY]?.newValue
             ),
+          });
+        }
+
+        if (
+          Object.prototype.hasOwnProperty.call(
+            changes,
+            PERSIST_SESSION_DATA_STORAGE_KEY
+          )
+        ) {
+          this.setState({
+            persistSessionData: Boolean(
+              changes[PERSIST_SESSION_DATA_STORAGE_KEY]?.newValue
+            ),
+          });
+        }
+
+        if (
+          Object.prototype.hasOwnProperty.call(
+            changes,
+            SESSION_RETENTION_MS_STORAGE_KEY
+          )
+        ) {
+          this.setState({
+            sessionRetentionMs:
+              Number(changes[SESSION_RETENTION_MS_STORAGE_KEY]?.newValue) ||
+              this.state.sessionRetentionMs,
           });
         }
 
@@ -309,6 +357,8 @@ class DevTools extends React.Component {
           diagnosticLogs: nextSession.diagnosticLogs,
           diagnosticMode: nextSession.modes.diagnosticMode,
           exportSanitizationMode: nextSession.modes.exportSanitizationMode,
+          persistSessionData: nextSession.modes.persistSessionData,
+          sessionRetentionMs: nextSession.modes.sessionRetentionMs,
           snippetLanguage: nextSession.modes.snippetLanguage,
           ultraXRayAcknowledged: nextSession.modes.ultraXRayAcknowledged,
           ultraXRayMode: nextSession.modes.ultraXRayMode,
@@ -327,6 +377,8 @@ class DevTools extends React.Component {
         capturePaused: this.state.capturePaused,
         diagnosticMode: this.state.diagnosticMode,
         exportSanitizationMode: this.state.exportSanitizationMode,
+        persistSessionData: this.state.persistSessionData,
+        sessionRetentionMs: this.state.sessionRetentionMs,
         snippetLanguage: this.state.snippetLanguage,
         ultraXRayAcknowledged: this.state.ultraXRayAcknowledged,
         ultraXRayMode: this.state.ultraXRayMode,
@@ -448,30 +500,7 @@ class DevTools extends React.Component {
     }
     const languageOpt = getSnippetLanguageOption(this.state.snippetLanguage);
     const exportMode = this.state.exportSanitizationMode;
-    const scriptArtifact =
-      exportMode === "summary"
-        ? buildExportArtifact({
-            rawContent: script,
-            mode: exportMode,
-            summary: {
-              kind: "script-summary",
-              language: this.state.snippetLanguage,
-              snippetCount: this.state.stack.filter(
-                (entry) => entry.code && entry.code.trim()
-              ).length,
-              batchSnippetCount: this.state.stack.reduce(
-                (total, entry) =>
-                  total + (entry.batchCodeSnippets?.length || 0),
-                0
-              ),
-            },
-          })
-        : {
-            content:
-              exportMode === "redacted" ? redactSensitiveText(script) : script,
-            extension: languageOpt.fileExt,
-            mimeType: "text/plain",
-          };
+    const scriptArtifact = this.buildScriptExportArtifact(script, exportMode);
     const fileName =
       "GraphXRaySession." +
       (scriptArtifact.extension || languageOpt.fileExt);
@@ -501,11 +530,44 @@ class DevTools extends React.Component {
       );
       return;
     }
-    navigator.clipboard.writeText(script);
+    const scriptArtifact = this.buildScriptExportArtifact(
+      script,
+      this.state.exportSanitizationMode
+    );
+    navigator.clipboard.writeText(scriptArtifact.content);
     this.recordDiagnostic("copy_script_requested", {
       language: this.state.snippetLanguage,
       scriptLength: script.length,
+      exportMode: this.state.exportSanitizationMode,
     });
+  };
+
+  buildScriptExportArtifact = (script, exportMode) => {
+    const languageOpt = getSnippetLanguageOption(this.state.snippetLanguage);
+
+    if (exportMode === "summary") {
+      return buildExportArtifact({
+        rawContent: script,
+        mode: exportMode,
+        summary: {
+          kind: "script-summary",
+          language: this.state.snippetLanguage,
+          snippetCount: this.state.stack.filter(
+            (entry) => entry.code && entry.code.trim()
+          ).length,
+          batchSnippetCount: this.state.stack.reduce(
+            (total, entry) => total + (entry.batchCodeSnippets?.length || 0),
+            0
+          ),
+        },
+      });
+    }
+
+    return {
+      content: exportMode === "redacted" ? redactSensitiveText(script) : script,
+      extension: languageOpt.fileExt,
+      mimeType: "text/plain",
+    };
   };
 
   saveLogs = () => {
@@ -991,6 +1053,10 @@ class DevTools extends React.Component {
   render() {
     const showFirefoxNote = isFirefoxBrowser();
     const visibleStack = [...this.state.stack].reverse();
+    const retentionLabel =
+      this.state.sessionRetentionMs % (60 * 60 * 1000) === 0
+        ? `${this.state.sessionRetentionMs / (60 * 60 * 1000)}h`
+        : `${Math.round(this.state.sessionRetentionMs / (60 * 1000))}m`;
 
     return (
       <div className="App" style={{ fontSize: FontSizes.size12 }}>
@@ -1124,6 +1190,40 @@ class DevTools extends React.Component {
                 options page.
               </div>
             )}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                flexWrap: "wrap",
+                marginBottom: "14px",
+              }}
+            >
+              <span
+                style={{
+                  backgroundColor: "#e2e8f0",
+                  color: "#334155",
+                  borderRadius: "999px",
+                  padding: "4px 10px",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                }}
+              >
+                Persistence: {this.state.persistSessionData ? "Persisted" : "Memory only"}
+              </span>
+              <span
+                style={{
+                  backgroundColor: "#e2e8f0",
+                  color: "#334155",
+                  borderRadius: "999px",
+                  padding: "4px 10px",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                }}
+              >
+                Retention: {retentionLabel}
+              </span>
+            </div>
             <div
               style={{
                 display: "flex",

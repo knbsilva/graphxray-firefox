@@ -7,6 +7,15 @@ import {
 
 const GRAPHXRAY_SESSION_STORAGE_KEY = "graphxraySession";
 const DEFAULT_SESSION_RETENTION_MS = 60 * 60 * 1000;
+const SESSION_RETENTION_OPTIONS = [
+  15 * 60 * 1000,
+  DEFAULT_SESSION_RETENTION_MS,
+  4 * 60 * 60 * 1000,
+];
+const normalizeSessionRetentionMs = (value) =>
+  SESSION_RETENTION_OPTIONS.includes(Number(value))
+    ? Number(value)
+    : DEFAULT_SESSION_RETENTION_MS;
 
 const DEFAULT_SESSION_MODES = {
   allowExternalSnippets: false,
@@ -14,6 +23,8 @@ const DEFAULT_SESSION_MODES = {
   capturePaused: false,
   diagnosticMode: false,
   exportSanitizationMode: "redacted",
+  persistSessionData: true,
+  sessionRetentionMs: DEFAULT_SESSION_RETENTION_MS,
   snippetLanguage: "powershell",
   ultraXRayAcknowledged: false,
   ultraXRayMode: false,
@@ -43,13 +54,17 @@ const isSessionExpired = (
   return Date.now() - updatedAtMs > retentionMs;
 };
 
-const normalizeSessionState = (session) => {
+const normalizeSessionState = (session, retentionMsOverride = null) => {
   const baseState = createEmptySessionState();
   if (!session || typeof session !== "object") {
     return baseState;
   }
 
-  if (isSessionExpired(session.updatedAt)) {
+  const effectiveRetentionMs = normalizeSessionRetentionMs(
+    retentionMsOverride ?? session?.modes?.sessionRetentionMs
+  );
+
+  if (isSessionExpired(session.updatedAt, effectiveRetentionMs)) {
     return baseState;
   }
 
@@ -61,6 +76,7 @@ const normalizeSessionState = (session) => {
     modes: {
       ...baseState.modes,
       ...(session.modes || {}),
+      sessionRetentionMs: effectiveRetentionMs,
     },
     updatedAt: session.updatedAt || baseState.updatedAt,
     sourceContext: session.sourceContext || baseState.sourceContext,
@@ -212,11 +228,13 @@ const downloadContentAsFile = async (
 
 export {
   DEFAULT_SESSION_RETENTION_MS,
+  SESSION_RETENTION_OPTIONS,
   GRAPHXRAY_SESSION_STORAGE_KEY,
   DEFAULT_SESSION_MODES,
   createEmptySessionState,
   isSessionExpired,
   normalizeSessionState,
+  normalizeSessionRetentionMs,
   buildSessionSnapshot,
   getSaveScriptContentFromStack,
   buildDiagnosticExportPayload,

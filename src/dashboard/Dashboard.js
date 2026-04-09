@@ -21,11 +21,15 @@ import {
 import {
   ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY,
   EXPORT_SANITIZATION_MODE_STORAGE_KEY,
+  PERSIST_SESSION_DATA_STORAGE_KEY,
+  SESSION_RETENTION_MS_STORAGE_KEY,
   SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY,
   ULTRA_XRAY_ACKNOWLEDGED_STORAGE_KEY,
   clearGraphXRayLocalData,
   getExportSanitizationMode,
   getGraphXRaySession,
+  getPersistSessionData,
+  getSessionRetentionMs,
   getSensitiveCaptureConsentAccepted,
   getUltraXRayAcknowledged,
   saveGraphXRaySession,
@@ -36,6 +40,7 @@ import {
   buildDiagnosticExportPayload,
   buildSessionSnapshot,
   createEmptySessionState,
+  DEFAULT_SESSION_RETENTION_MS,
   downloadContentAsFile,
   getSaveScriptContentFromStack,
   GRAPHXRAY_SESSION_STORAGE_KEY,
@@ -76,6 +81,15 @@ const formatTimestamp = (timestamp) => {
   }
 };
 
+const formatRetentionLabel = (retentionMs = DEFAULT_SESSION_RETENTION_MS) => {
+  if (retentionMs % (60 * 60 * 1000) === 0) {
+    const hours = retentionMs / (60 * 60 * 1000);
+    return `${hours}h`;
+  }
+
+  return `${Math.round(retentionMs / (60 * 1000))}m`;
+};
+
 class Dashboard extends React.Component {
   constructor() {
     super();
@@ -84,6 +98,7 @@ class Dashboard extends React.Component {
       searchText: "",
       selectedMethods: [],
       selectedEntryKey: null,
+      sessionRetentionMs: DEFAULT_SESSION_RETENTION_MS,
       session: createEmptySessionState(),
     };
     this.removeStorageChangeListener = null;
@@ -102,10 +117,14 @@ class Dashboard extends React.Component {
 
   loadSession = async () => {
     const session = normalizeSessionState(await getGraphXRaySession());
+    const persistSessionData = await getPersistSessionData();
+    const sessionRetentionMs = await getSessionRetentionMs();
     session.modes.allowExternalSnippets = await getAllowExternalSnippets();
     session.modes.captureConsentAccepted =
       await getSensitiveCaptureConsentAccepted();
     session.modes.exportSanitizationMode = await getExportSanitizationMode();
+    session.modes.persistSessionData = persistSessionData;
+    session.modes.sessionRetentionMs = sessionRetentionMs;
     session.modes.ultraXRayAcknowledged = await getUltraXRayAcknowledged();
     this.setState((previousState) => {
       const previousVisibleEntries = this.getVisibleEntries(previousState.session);
@@ -117,6 +136,7 @@ class Dashboard extends React.Component {
 
       return {
         isLoading: false,
+        sessionRetentionMs,
         session,
         selectedEntryKey: this.resolveNextSelectedEntryKey({
           previousVisibleEntries,
@@ -167,6 +187,28 @@ class Dashboard extends React.Component {
           if (
             Object.prototype.hasOwnProperty.call(
               changes,
+              PERSIST_SESSION_DATA_STORAGE_KEY
+            )
+          ) {
+            session.modes.persistSessionData = Boolean(
+              changes[PERSIST_SESSION_DATA_STORAGE_KEY]?.newValue
+            );
+          }
+
+          if (
+            Object.prototype.hasOwnProperty.call(
+              changes,
+              SESSION_RETENTION_MS_STORAGE_KEY
+            )
+          ) {
+            session.modes.sessionRetentionMs =
+              Number(changes[SESSION_RETENTION_MS_STORAGE_KEY]?.newValue) ||
+              previousState.sessionRetentionMs;
+          }
+
+          if (
+            Object.prototype.hasOwnProperty.call(
+              changes,
               SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY
             )
           ) {
@@ -201,6 +243,14 @@ class Dashboard extends React.Component {
             ) &&
             !Object.prototype.hasOwnProperty.call(
               changes,
+              PERSIST_SESSION_DATA_STORAGE_KEY
+            ) &&
+            !Object.prototype.hasOwnProperty.call(
+              changes,
+              SESSION_RETENTION_MS_STORAGE_KEY
+            ) &&
+            !Object.prototype.hasOwnProperty.call(
+              changes,
               SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY
             ) &&
             !Object.prototype.hasOwnProperty.call(
@@ -220,6 +270,7 @@ class Dashboard extends React.Component {
 
           return {
             isLoading: false,
+            sessionRetentionMs: session.modes.sessionRetentionMs,
             session,
             selectedEntryKey: this.resolveNextSelectedEntryKey({
               previousVisibleEntries,
@@ -673,6 +724,12 @@ class Dashboard extends React.Component {
                   </span>
                   <span className="DashboardMetaChip">
                     Export mode: {session.modes.exportSanitizationMode}
+                  </span>
+                  <span className="DashboardMetaChip">
+                    Persistence: {session.modes.persistSessionData ? "Persisted" : "Memory only"}
+                  </span>
+                  <span className="DashboardMetaChip">
+                    Retention: {formatRetentionLabel(session.modes.sessionRetentionMs)}
                   </span>
                   <span className="DashboardMetaChip">
                     Ultra X-Ray ack: {session.modes.ultraXRayAcknowledged ? "Accepted" : "Required"}
