@@ -152,3 +152,6 @@
 - Made persisted session retention configurable from the options page and surfaced the active retention window in the standalone dashboard.
 - Added an opt-in `Memory only` persistence mode that keeps new captures out of persisted extension storage and clears the stored session snapshot when the mode is enabled.
 - Surfaced the current persistence mode and retention window directly in the DevTools security/status area.
+- Stopped producing `contentScript.bundle.js` in Firefox builds now that the Firefox manifest no longer injects a content script.
+- Removed unused direct dependencies (`axios`, `react-csv`, `react-markdown`, `react-scroll-to-bottom`, `uuid`, `web-vitals`, `@fluentui/react-icons-mdl2-branded`) from the Firefox fork.
+- Added tests that assert `Local only` blocks DevX for non-local languages while keeping PowerShell local.

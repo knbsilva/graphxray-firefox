@@ -36,6 +36,7 @@ const react = require(require.resolve('react', { paths: [paths.appPath] }));
 const env = getClientEnvironment();
 const useYarn = fs.existsSync(paths.yarnLockFile);
 const isInteractive = process.stdout.isTTY;
+const isFirefoxTarget = paths.browserTarget === 'firefox';
 const devBuildFolder = path
   .relative(paths.appPath, paths.devAppBuild)
   .replace(/\\/g, '/');
@@ -47,11 +48,11 @@ if (
     paths.manifestJson,
     paths.appIndexJs,
     paths.appBackgroundJs,
-    paths.appContentScriptJs,
     paths.appOptionsHtml,
     paths.appOptionsJs,
     paths.appDevToolsHtml,
     paths.appDevToolsJs,
+    ...(paths.browserTarget === 'firefox' ? [] : [paths.appContentScriptJs]),
   ])
 ) {
   process.exit(1);
@@ -100,6 +101,7 @@ checkBrowsers(paths.appPath, isInteractive)
     const useTypeScript = fs.existsSync(paths.appTsConfig);
     // Merge with the public folder
     const copyPublicFolder = require('./utils/copyPublicFolder');
+    pruneLegacyFirefoxArtifacts(paths.devAppBuild);
     copyPublicFolder(paths.devAppBuild);
     const tscCompileOnError = process.env.TSC_COMPILE_ON_ERROR === 'true';
     const urls = {
@@ -164,3 +166,20 @@ checkBrowsers(paths.appPath, isInteractive)
     }
     process.exit(1);
   });
+
+function pruneLegacyFirefoxArtifacts(targetDirectory) {
+  if (!isFirefoxTarget) {
+    return;
+  }
+
+  [
+    'contentScript.bundle.js',
+    'contentScript.bundle.js.map',
+    'contentScript.bundle.js.LICENSE.txt',
+  ].forEach(fileName => {
+    const filePath = path.join(targetDirectory, fileName);
+    if (fs.existsSync(filePath)) {
+      fs.rmSync(filePath, { force: true });
+    }
+  });
+}

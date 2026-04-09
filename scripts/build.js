@@ -34,6 +34,7 @@ const printFileSizesAfterBuild = FileSizeReporter.printFileSizesAfterBuild;
 const useYarn = fs.existsSync(paths.yarnLockFile);
 const browserTargetLabel =
   paths.browserTarget === 'firefox' ? 'Firefox' : 'Chromium';
+const isFirefoxTarget = paths.browserTarget === 'firefox';
 
 // These sizes are pretty large. We'll warn for bundles exceeding them.
 const WARN_AFTER_BUNDLE_GZIP_SIZE = 512 * 1024;
@@ -48,11 +49,11 @@ if (
     paths.manifestJson,
     paths.appIndexJs,
     paths.appBackgroundJs,
-    paths.appContentScriptJs,
     paths.appOptionsHtml,
     paths.appOptionsJs,
     paths.appDevToolsHtml,
     paths.appDevToolsJs,
+    ...(paths.browserTarget === 'firefox' ? [] : [paths.appContentScriptJs]),
   ])
 ) {
   process.exit(1);
@@ -77,6 +78,7 @@ checkBrowsers(paths.appPath, isInteractive)
     // Remove all content but keep the directory so that
     // if you're in it, you don't end up in Trash
     fs.emptyDirSync(paths.appBuild);
+    pruneLegacyFirefoxArtifacts(paths.appBuild);
     // Merge with the public folder
     const copyPublicFolder = require('./utils/copyPublicFolder');
     copyPublicFolder(paths.appBuild);
@@ -203,6 +205,8 @@ function build(previousFileSizes) {
         warnings: messages.warnings,
       };
 
+      pruneLegacyFirefoxArtifacts(paths.appBuild);
+
       if (writeStatsJson) {
         return bfj
           .write(paths.appBuild + '/bundle-stats.json', stats.toJson())
@@ -219,5 +223,19 @@ function copyPublicFolder() {
   fs.copySync(paths.appPublic, paths.appBuild, {
     dereference: true,
     filter: file => file !== paths.appHtml,
+  });
+}
+
+function pruneLegacyFirefoxArtifacts(targetDirectory) {
+  if (!isFirefoxTarget) {
+    return;
+  }
+
+  [
+    'contentScript.bundle.js',
+    'contentScript.bundle.js.map',
+    'contentScript.bundle.js.LICENSE.txt',
+  ].forEach(fileName => {
+    fs.removeSync(path.join(targetDirectory, fileName));
   });
 }

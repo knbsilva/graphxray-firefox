@@ -9,6 +9,7 @@ const DISALLOWED_PATTERNS = [
   /(^|[\\/])captures([\\/]|$)/i,
   /(^|[\\/])exports([\\/]|$)/i,
   /(^|[\\/])\.tools([\\/]|$)/i,
+  /(^|[\\/])contentScript\.bundle\.js(\.map|\.LICENSE\.txt)?$/i,
 ];
 
 function validatePackageContents(targetDirectory) {

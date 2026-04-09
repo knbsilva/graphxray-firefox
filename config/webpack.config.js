@@ -71,6 +71,7 @@ const hasJsxRuntime = (() => {
 module.exports = function (webpackEnv) {
   const isEnvDevelopment = webpackEnv === 'development';
   const isEnvProduction = webpackEnv === 'production';
+  const includeContentScript = paths.browserTarget !== 'firefox';
 
   // Variable used for enabling profiling in Production
   // passed into alias object. Uses a flag if passed into the build command
@@ -180,7 +181,11 @@ module.exports = function (webpackEnv) {
             '?http://localhost:4000',
         paths.appBackgroundJs,
       ].filter(Boolean),
-      contentScript: paths.appContentScriptJs,
+      ...(includeContentScript
+        ? {
+            contentScript: paths.appContentScriptJs,
+          }
+        : {}),
     },
     output: {
       // The build folder.
