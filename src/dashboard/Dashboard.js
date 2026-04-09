@@ -20,6 +20,7 @@ import {
 } from "../common/diagnostics.js";
 import {
   ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY,
+  EXTERNAL_SNIPPETS_ACKNOWLEDGED_STORAGE_KEY,
   EXPORT_SANITIZATION_MODE_STORAGE_KEY,
   PERSIST_SESSION_DATA_STORAGE_KEY,
   SESSION_RETENTION_MS_STORAGE_KEY,
@@ -28,6 +29,7 @@ import {
   clearGraphXRayLocalData,
   getExportSanitizationMode,
   getGraphXRaySession,
+  getExternalSnippetsAcknowledged,
   getPersistSessionData,
   getSessionRetentionMs,
   getSensitiveCaptureConsentAccepted,
@@ -122,6 +124,8 @@ class Dashboard extends React.Component {
     session.modes.allowExternalSnippets = await getAllowExternalSnippets();
     session.modes.captureConsentAccepted =
       await getSensitiveCaptureConsentAccepted();
+    session.modes.externalSnippetsAcknowledged =
+      await getExternalSnippetsAcknowledged();
     session.modes.exportSanitizationMode = await getExportSanitizationMode();
     session.modes.persistSessionData = persistSessionData;
     session.modes.sessionRetentionMs = sessionRetentionMs;
@@ -170,6 +174,17 @@ class Dashboard extends React.Component {
           ) {
             session.modes.allowExternalSnippets = Boolean(
               changes[ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY]?.newValue
+            );
+          }
+
+          if (
+            Object.prototype.hasOwnProperty.call(
+              changes,
+              EXTERNAL_SNIPPETS_ACKNOWLEDGED_STORAGE_KEY
+            )
+          ) {
+            session.modes.externalSnippetsAcknowledged = Boolean(
+              changes[EXTERNAL_SNIPPETS_ACKNOWLEDGED_STORAGE_KEY]?.newValue
             );
           }
 
@@ -236,6 +251,10 @@ class Dashboard extends React.Component {
             !Object.prototype.hasOwnProperty.call(
               changes,
               ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY
+            ) &&
+            !Object.prototype.hasOwnProperty.call(
+              changes,
+              EXTERNAL_SNIPPETS_ACKNOWLEDGED_STORAGE_KEY
             ) &&
             !Object.prototype.hasOwnProperty.call(
               changes,
@@ -721,6 +740,9 @@ class Dashboard extends React.Component {
                   </span>
                   <span className="DashboardMetaChip">
                     External snippets: {session.modes.allowExternalSnippets ? "On" : "Off"}
+                  </span>
+                  <span className="DashboardMetaChip">
+                    External snippets ack: {session.modes.externalSnippetsAcknowledged ? "Accepted" : "Required"}
                   </span>
                   <span className="DashboardMetaChip">
                     Export mode: {session.modes.exportSanitizationMode}

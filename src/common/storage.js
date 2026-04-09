@@ -15,6 +15,8 @@ import {
 
 const REQUEST_BODIES_STORAGE_KEY = "requestBodiesCache";
 const ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY = "graphxrayAllowExternalSnippets";
+const EXTERNAL_SNIPPETS_ACKNOWLEDGED_STORAGE_KEY =
+  "graphxrayExternalSnippetsAcknowledged";
 const SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY = "graphxraySensitiveCaptureConsent";
 const EXPORT_SANITIZATION_MODE_STORAGE_KEY = "graphxrayExportSanitizationMode";
 const PERSIST_SESSION_DATA_STORAGE_KEY = "graphxrayPersistSessionData";
@@ -71,6 +73,14 @@ const saveAllowExternalSnippets = async (enabled) =>
   await saveObjectInLocalStorage({
     [ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY]: Boolean(enabled),
   });
+const getExternalSnippetsAcknowledged = async () =>
+  Boolean(
+    await getObjectFromLocalStorage(EXTERNAL_SNIPPETS_ACKNOWLEDGED_STORAGE_KEY)
+  );
+const saveExternalSnippetsAcknowledged = async (acknowledged) =>
+  await saveObjectInLocalStorage({
+    [EXTERNAL_SNIPPETS_ACKNOWLEDGED_STORAGE_KEY]: Boolean(acknowledged),
+  });
 const getSensitiveCaptureConsentAccepted = async () =>
   Boolean(await getObjectFromLocalStorage(SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY));
 const saveSensitiveCaptureConsentAccepted = async (accepted) =>
@@ -91,7 +101,12 @@ const getPersistSessionData = async () => {
 const savePersistSessionData = async (enabled) =>
   await saveObjectInLocalStorage({
     [PERSIST_SESSION_DATA_STORAGE_KEY]: Boolean(enabled),
-    ...(enabled ? {} : { [GRAPHXRAY_SESSION_STORAGE_KEY]: createEmptySessionState() }),
+    ...(enabled
+      ? {}
+      : {
+          [GRAPHXRAY_SESSION_STORAGE_KEY]: createEmptySessionState(),
+          [REQUEST_BODIES_STORAGE_KEY]: [],
+        }),
   });
 const getSessionRetentionMs = async () =>
   normalizeSessionRetentionMs(
@@ -111,6 +126,8 @@ const getGraphXRaySession = async () => {
   const retentionMs = await getSessionRetentionMs();
   const rawSession = await getObjectFromLocalStorage(GRAPHXRAY_SESSION_STORAGE_KEY);
   const normalizedSession = normalizeSessionState(rawSession, retentionMs);
+  normalizedSession.modes.externalSnippetsAcknowledged =
+    await getExternalSnippetsAcknowledged();
   normalizedSession.modes.persistSessionData = await getPersistSessionData();
 
   if (rawSession?.updatedAt && isSessionExpired(rawSession.updatedAt, retentionMs)) {
@@ -133,6 +150,7 @@ const clearGraphXRayLocalData = async () => {
   await saveObjectInLocalStorage({
     ...LEGACY_EXTENSION_STATE,
     [EXPORT_SANITIZATION_MODE_STORAGE_KEY]: "redacted",
+    [EXTERNAL_SNIPPETS_ACKNOWLEDGED_STORAGE_KEY]: false,
     [PERSIST_SESSION_DATA_STORAGE_KEY]: true,
     [SESSION_RETENTION_MS_STORAGE_KEY]: DEFAULT_SESSION_RETENTION_MS,
     [SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY]: false,
@@ -194,6 +212,7 @@ const addKeystrokes = async (i = 1) => {
 
 export {
   ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY,
+  EXTERNAL_SNIPPETS_ACKNOWLEDGED_STORAGE_KEY,
   EXPORT_SANITIZATION_MODE_STORAGE_KEY,
   PERSIST_SESSION_DATA_STORAGE_KEY,
   SESSION_RETENTION_MS_STORAGE_KEY,
@@ -212,6 +231,8 @@ export {
   saveDiagnosticModeEnabled,
   getAllowExternalSnippets,
   saveAllowExternalSnippets,
+  getExternalSnippetsAcknowledged,
+  saveExternalSnippetsAcknowledged,
   getSensitiveCaptureConsentAccepted,
   saveSensitiveCaptureConsentAccepted,
   getExportSanitizationMode,

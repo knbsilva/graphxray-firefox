@@ -2,7 +2,9 @@ import {
   getGraphXRaySession,
   getDiagnosticModeEnabled,
   getObjectFromLocalStorage,
+  getPersistSessionData,
   getRequestBodiesCache,
+  PERSIST_SESSION_DATA_STORAGE_KEY,
   saveObjectInLocalStorage,
   saveRequestBodiesCache,
 } from "../common/storage.js";
@@ -91,6 +93,7 @@ export async function init() {
   let requestBodies = [];
   let requestBodyWriteQueue = Promise.resolve();
   let diagnosticModeEnabled = await getDiagnosticModeEnabled();
+  let persistSessionData = await getPersistSessionData();
 
   const snapshotRequestBodies = () => pruneRequestBodies(requestBodies);
   const emitDiagnosticLog = (event, details = {}, level = "info") => {
@@ -112,6 +115,10 @@ export async function init() {
   };
 
   const persistRequestBodiesSnapshot = async () => {
+    if (!persistSessionData) {
+      await saveRequestBodiesCache([]);
+      return;
+    }
     await saveRequestBodiesCache(snapshotRequestBodies());
   };
 
@@ -157,6 +164,15 @@ export async function init() {
     }
 
     const cachedRequestBodies = await getRequestBodiesCache();
+    if (!persistSessionData) {
+      emitDiagnosticLog("request_body_cache_storage_skipped", {
+        url: requestDetails.url,
+        method: requestDetails.method,
+        reason: "memory_only_mode",
+      });
+      return "";
+    }
+
     const storedRequestBodies = pruneRequestBodies(cachedRequestBodies);
     if (hasObjectChanged(cachedRequestBodies, storedRequestBodies)) {
       await saveRequestBodiesCache(storedRequestBodies);
@@ -184,6 +200,9 @@ export async function init() {
 
   await ensureExtensionState();
   await getGraphXRaySession();
+  if (!persistSessionData) {
+    await saveRequestBodiesCache([]);
+  }
   extensionApi.storage?.onChanged?.addListener((changes, areaName) => {
     if (
       areaName === "local" &&
@@ -192,6 +211,21 @@ export async function init() {
       diagnosticModeEnabled = Boolean(
         changes[DIAGNOSTIC_MODE_STORAGE_KEY]?.newValue
       );
+    }
+
+    if (
+      areaName === "local" &&
+      Object.prototype.hasOwnProperty.call(changes, PERSIST_SESSION_DATA_STORAGE_KEY)
+    ) {
+      persistSessionData = Boolean(
+        changes[PERSIST_SESSION_DATA_STORAGE_KEY]?.newValue
+      );
+
+      if (!persistSessionData) {
+        clearRequestBodyCache().catch((error) => {
+          warnLog("Could not clear request body cache after disabling persistence", error);
+        });
+      }
     }
   });
 

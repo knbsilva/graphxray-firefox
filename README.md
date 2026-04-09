@@ -197,6 +197,7 @@ Runs a production-focused dependency audit (`npm audit --omit=dev`) against the 
 - Graph X-Ray can capture sensitive Microsoft 365 administrative request bodies, response bodies, and generated snippets.
 - A first-use consent acknowledgement is required before new captures are appended.
 - Ultra X-Ray has a separate acknowledgement step because it can expose higher-risk undocumented or internal API traffic.
+- External snippet generation now has its own first-enable acknowledgement because it can transmit supported request payloads to the DevX service.
 - Diagnostic exports can contain redacted troubleshooting data, but should still be treated as sensitive.
 - Export sanitization can be set to:
   - `raw` to preserve captured content as-is
@@ -204,6 +205,7 @@ Runs a production-focused dependency audit (`npm audit --omit=dev`) against the 
   - `summary` to save metadata-only JSON
 - Session persistence can be switched between `Persisted` and `Memory only`.
 - In `Memory only` mode, new captures stay in the current DevTools session and are not mirrored into persisted extension storage for the standalone dashboard.
+- In `Memory only` mode, the short-lived request-body correlation cache is also cleared from persisted storage.
 - Persisted session retention can be set from the options page to reduce how long captured data remains in local extension storage.
 - In `Local only` mode, Graph X-Ray does not submit captured request payloads to the external DevX snippet service.
 - If you enable external snippets, request payload content for supported languages can be sent to the DevX endpoint for snippet generation.

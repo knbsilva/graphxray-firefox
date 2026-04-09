@@ -155,3 +155,5 @@
 - Stopped producing `contentScript.bundle.js` in Firefox builds now that the Firefox manifest no longer injects a content script.
 - Removed unused direct dependencies (`axios`, `react-csv`, `react-markdown`, `react-scroll-to-bottom`, `uuid`, `web-vitals`, `@fluentui/react-icons-mdl2-branded`) from the Firefox fork.
 - Added tests that assert `Local only` blocks DevX for non-local languages while keeping PowerShell local.
+- Added a separate first-enable acknowledgement for external snippet generation so DevX submission is not enabled silently.
+- Aligned `Memory only` mode with the request-body correlation cache so persisted request-body entries are cleared and no longer written while persistence is disabled.

@@ -22,6 +22,7 @@ const DEFAULT_SESSION_MODES = {
   captureConsentAccepted: false,
   capturePaused: false,
   diagnosticMode: false,
+  externalSnippetsAcknowledged: false,
   exportSanitizationMode: "redacted",
   persistSessionData: true,
   sessionRetentionMs: DEFAULT_SESSION_RETENTION_MS,

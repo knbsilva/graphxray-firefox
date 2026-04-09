@@ -11,6 +11,7 @@ import {
 } from "@fluentui/react";
 import { isFirefoxBrowser } from "../common/extensionApi.js";
 import {
+  getExternalSnippetsAcknowledged,
   getExportSanitizationMode,
   getAllowExternalSnippets,
   getPersistSessionData,
@@ -19,6 +20,7 @@ import {
   getUltraXRayAcknowledged,
   saveExportSanitizationMode,
   saveAllowExternalSnippets,
+  saveExternalSnippetsAcknowledged,
   savePersistSessionData,
   saveSessionRetentionMs,
   saveSensitiveCaptureConsentAccepted,
@@ -43,6 +45,7 @@ class Options extends React.Component {
       stack: [],
       allowExternalSnippets: false,
       captureConsentAccepted: false,
+      externalSnippetsAcknowledged: false,
       exportSanitizationMode: DEFAULT_EXPORT_SANITIZATION_MODE,
       persistSessionData: true,
       sessionRetentionMs: DEFAULT_SESSION_RETENTION_MS,
@@ -54,6 +57,7 @@ class Options extends React.Component {
     this.setState({
       allowExternalSnippets: await getAllowExternalSnippets(),
       captureConsentAccepted: await getSensitiveCaptureConsentAccepted(),
+      externalSnippetsAcknowledged: await getExternalSnippetsAcknowledged(),
       exportSanitizationMode: await getExportSanitizationMode(),
       persistSessionData: await getPersistSessionData(),
       sessionRetentionMs: await getSessionRetentionMs(),
@@ -63,9 +67,27 @@ class Options extends React.Component {
 
   onAllowExternalSnippetsChange = async (_, checked) => {
     const enabled = Boolean(checked);
+    if (
+      enabled &&
+      !this.state.externalSnippetsAcknowledged &&
+      typeof window !== "undefined" &&
+      !window.confirm(
+        "Enabling external snippet generation allows Graph X-Ray to send supported request payloads to the Microsoft Graph DevX snippet service. Continue?"
+      )
+    ) {
+      return;
+    }
+
+    if (enabled && !this.state.externalSnippetsAcknowledged) {
+      await saveExternalSnippetsAcknowledged(true);
+    }
+
     await saveAllowExternalSnippets(enabled);
     this.setState({
       allowExternalSnippets: enabled,
+      externalSnippetsAcknowledged: enabled
+        ? true
+        : this.state.externalSnippetsAcknowledged,
     });
   };
 
@@ -184,6 +206,14 @@ class Options extends React.Component {
                   do not have a local generator. When disabled, PowerShell stays
                   local and other languages fail closed without external
                   submission.
+                </p>
+                <p style={{ marginBottom: 0, color: "#475569" }}>
+                  Current acknowledgement state:{" "}
+                  <strong>
+                    {this.state.externalSnippetsAcknowledged
+                      ? "accepted"
+                      : "required"}
+                  </strong>
                 </p>
               </div>
               <div

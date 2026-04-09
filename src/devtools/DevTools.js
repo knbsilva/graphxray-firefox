@@ -22,6 +22,7 @@ import {
 } from "../common/extensionApi.js";
 import {
   ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY,
+  EXTERNAL_SNIPPETS_ACKNOWLEDGED_STORAGE_KEY,
   EXPORT_SANITIZATION_MODE_STORAGE_KEY,
   PERSIST_SESSION_DATA_STORAGE_KEY,
   SESSION_RETENTION_MS_STORAGE_KEY,
@@ -29,6 +30,7 @@ import {
   ULTRA_XRAY_ACKNOWLEDGED_STORAGE_KEY,
   getExportSanitizationMode,
   getAllowExternalSnippets,
+  getExternalSnippetsAcknowledged,
   getGraphXRaySession,
   getPersistSessionData,
   getSessionRetentionMs,
@@ -36,6 +38,7 @@ import {
   getUltraXRayAcknowledged,
   clearGraphXRayLocalData,
   saveAllowExternalSnippets,
+  saveExternalSnippetsAcknowledged,
   saveDiagnosticModeEnabled,
   saveGraphXRaySession,
   saveSensitiveCaptureConsentAccepted,
@@ -91,6 +94,7 @@ class DevTools extends React.Component {
       allowExternalSnippets: false,
       captureConsentAccepted: false,
       capturePaused: false,
+      externalSnippetsAcknowledged: false,
       stack: [],
       diagnosticLogs: [],
       diagnosticMode,
@@ -109,6 +113,7 @@ class DevTools extends React.Component {
     this.hydrateSessionFromStorage();
     this.hydrateCaptureConsent();
     this.hydrateExternalSnippetSetting();
+    this.hydrateExternalSnippetAcknowledgement();
     this.hydrateExportSanitizationMode();
     this.hydratePersistenceMode();
     this.hydrateSessionRetention();
@@ -137,6 +142,12 @@ class DevTools extends React.Component {
   hydrateExternalSnippetSetting = async () => {
     this.setState({
       allowExternalSnippets: await getAllowExternalSnippets(),
+    });
+  };
+
+  hydrateExternalSnippetAcknowledgement = async () => {
+    this.setState({
+      externalSnippetsAcknowledged: await getExternalSnippetsAcknowledged(),
     });
   };
 
@@ -233,6 +244,7 @@ class DevTools extends React.Component {
       allowExternalSnippets: session.modes.allowExternalSnippets,
       captureConsentAccepted: session.modes.captureConsentAccepted,
       capturePaused: session.modes.capturePaused,
+      externalSnippetsAcknowledged: session.modes.externalSnippetsAcknowledged,
       stack: session.stack,
       diagnosticLogs: session.diagnosticLogs,
       diagnosticMode: session.modes.diagnosticMode,
@@ -263,6 +275,19 @@ class DevTools extends React.Component {
           this.setState({
             allowExternalSnippets: Boolean(
               changes[ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY]?.newValue
+            ),
+          });
+        }
+
+        if (
+          Object.prototype.hasOwnProperty.call(
+            changes,
+            EXTERNAL_SNIPPETS_ACKNOWLEDGED_STORAGE_KEY
+          )
+        ) {
+          this.setState({
+            externalSnippetsAcknowledged: Boolean(
+              changes[EXTERNAL_SNIPPETS_ACKNOWLEDGED_STORAGE_KEY]?.newValue
             ),
           });
         }
@@ -353,6 +378,8 @@ class DevTools extends React.Component {
           allowExternalSnippets: nextSession.modes.allowExternalSnippets,
           captureConsentAccepted: nextSession.modes.captureConsentAccepted,
           capturePaused: nextSession.modes.capturePaused,
+          externalSnippetsAcknowledged:
+            nextSession.modes.externalSnippetsAcknowledged,
           stack: nextSession.stack,
           diagnosticLogs: nextSession.diagnosticLogs,
           diagnosticMode: nextSession.modes.diagnosticMode,
@@ -376,6 +403,7 @@ class DevTools extends React.Component {
         captureConsentAccepted: this.state.captureConsentAccepted,
         capturePaused: this.state.capturePaused,
         diagnosticMode: this.state.diagnosticMode,
+        externalSnippetsAcknowledged: this.state.externalSnippetsAcknowledged,
         exportSanitizationMode: this.state.exportSanitizationMode,
         persistSessionData: this.state.persistSessionData,
         sessionRetentionMs: this.state.sessionRetentionMs,
@@ -1035,10 +1063,35 @@ class DevTools extends React.Component {
 
   onAllowExternalSnippetsToggle = async (e, checked) => {
     const nextValue = Boolean(checked);
+    if (
+      nextValue &&
+      !this.state.externalSnippetsAcknowledged &&
+      typeof window !== "undefined" &&
+      !window.confirm(
+        "Enabling external snippet generation allows Graph X-Ray to send supported request payloads to the Microsoft Graph DevX snippet service. Continue?"
+      )
+    ) {
+      this.recordDiagnostic(
+        "external_snippets_enable_cancelled",
+        {
+          snippetLanguage: this.state.snippetLanguage,
+        },
+        "warning"
+      );
+      return;
+    }
+
+    if (nextValue && !this.state.externalSnippetsAcknowledged) {
+      await saveExternalSnippetsAcknowledged(true);
+    }
+
     await saveAllowExternalSnippets(nextValue);
     this.setState(
       {
         allowExternalSnippets: nextValue,
+        externalSnippetsAcknowledged: nextValue
+          ? true
+          : this.state.externalSnippetsAcknowledged,
       },
       () => {
         this.scheduleSessionSync();
@@ -1222,6 +1275,18 @@ class DevTools extends React.Component {
                 }}
               >
                 Retention: {retentionLabel}
+              </span>
+              <span
+                style={{
+                  backgroundColor: "#e2e8f0",
+                  color: "#334155",
+                  borderRadius: "999px",
+                  padding: "4px 10px",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                }}
+              >
+                External snippets ack: {this.state.externalSnippetsAcknowledged ? "Accepted" : "Required"}
               </span>
             </div>
             <div
