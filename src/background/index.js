@@ -3,8 +3,10 @@ import {
   getDiagnosticModeEnabled,
   getObjectFromLocalStorage,
   getPersistSessionData,
+  getSensitiveCaptureConsentAccepted,
   getRequestBodiesCache,
   PERSIST_SESSION_DATA_STORAGE_KEY,
+  SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY,
   saveObjectInLocalStorage,
   saveRequestBodiesCache,
 } from "../common/storage.js";
@@ -14,12 +16,17 @@ import {
   buildDiagnosticEntry,
   createDiagnosticPreview,
 } from "../common/diagnostics.js";
-import { getAllDomainUrls } from "../common/domains.js";
+import { getAllowedDomainUrls } from "../common/domains.js";
+import {
+  evaluateCaptureEligibility,
+  filterCapturedEntries,
+} from "../common/capturePolicy.js";
 import {
   addRuntimeMessageListener,
   extensionApi,
   sendRuntimeMessage,
 } from "../common/extensionApi.js";
+import { normalizeSessionState } from "../common/session.js";
 import { warnLog } from "../common/security.js";
 
 const REQUEST_BODY_TTL_MS = 30 * 1000;
@@ -92,10 +99,24 @@ export async function init() {
   // Store request bodies temporarily
   let requestBodies = [];
   let requestBodyWriteQueue = Promise.resolve();
+  let requestBodyListenerScope = "uninitialized";
   let diagnosticModeEnabled = await getDiagnosticModeEnabled();
   let persistSessionData = await getPersistSessionData();
+  const initialSession = await getGraphXRaySession();
+  let captureConsentAccepted = await getSensitiveCaptureConsentAccepted();
+  let capturePaused = Boolean(initialSession.modes.capturePaused);
+  let ultraXRayMode = Boolean(initialSession.modes.ultraXRayMode);
 
-  const snapshotRequestBodies = () => pruneRequestBodies(requestBodies);
+  const getCaptureModes = () => ({
+    captureConsentAccepted,
+    capturePaused,
+    ultraXRayMode,
+  });
+
+  const applyRequestBodyPolicy = (entries) =>
+    filterCapturedEntries(pruneRequestBodies(entries), getCaptureModes());
+
+  const snapshotRequestBodies = () => applyRequestBodyPolicy(requestBodies);
   const emitDiagnosticLog = (event, details = {}, level = "info") => {
     if (!diagnosticModeEnabled) {
       return;
@@ -128,8 +149,18 @@ export async function init() {
     emitDiagnosticLog("request_body_cache_cleared");
   };
 
+  const enforceRequestBodyPolicy = async () => {
+    const nextRequestBodies = applyRequestBodyPolicy(requestBodies);
+    const changed = hasObjectChanged(requestBodies, nextRequestBodies);
+    requestBodies = nextRequestBodies;
+
+    if (changed || persistSessionData) {
+      await persistRequestBodiesSnapshot();
+    }
+  };
+
   const persistRequestBody = (url, method, body, timestamp) => {
-    requestBodies = pruneRequestBodies([
+    requestBodies = applyRequestBodyPolicy([
       {
         url,
         method,
@@ -149,8 +180,117 @@ export async function init() {
       });
   };
 
+  const requestBodyListener = (details) => {
+    const captureEligibility = evaluateCaptureEligibility(
+      details.url,
+      getCaptureModes()
+    );
+    emitDiagnosticLog("web_request_intercepted", {
+      url: details.url,
+      method: details.method,
+      hasRequestBody: Boolean(details.requestBody),
+    });
+    if (!captureEligibility.allowed) {
+      emitDiagnosticLog("request_body_capture_skipped", {
+        url: details.url,
+        method: details.method,
+        reason: captureEligibility.reason,
+      });
+      return;
+    }
+    if (details.requestBody) {
+      // Store the request body temporarily with URL as key
+      let bodyData = "";
+      let requestBodySource = "unknown";
+      if (details.requestBody.raw) {
+        // Handle raw body data
+        const decoder = new TextDecoder("utf-8");
+        bodyData = details.requestBody.raw
+          .map((data) => decoder.decode(data.bytes))
+          .join("");
+        requestBodySource = "raw";
+      } else if (details.requestBody.formData) {
+        // Handle form data
+        bodyData = JSON.stringify(details.requestBody.formData);
+        requestBodySource = "formData";
+      }
+
+      if (bodyData) {
+        persistRequestBody(
+          details.url,
+          details.method,
+          bodyData,
+          details.timeStamp || Date.now()
+        );
+
+        emitDiagnosticLog("request_body_captured", {
+          url: details.url,
+          method: details.method,
+          source: requestBodySource,
+          bodyLength: bodyData.length,
+          bodyPreview: createDiagnosticPreview(bodyData),
+        });
+      }
+    }
+  };
+
+  const syncRequestBodyListener = () => {
+    const shouldCapture = captureConsentAccepted && !capturePaused;
+    const nextScope = shouldCapture
+      ? JSON.stringify({
+          ultraXRayMode,
+          urls: getAllowedDomainUrls(ultraXRayMode),
+        })
+      : "disabled";
+
+    if (requestBodyListenerScope === nextScope) {
+      return;
+    }
+
+    if (extensionApi.webRequest?.onBeforeRequest?.hasListener?.(requestBodyListener)) {
+      extensionApi.webRequest.onBeforeRequest.removeListener(requestBodyListener);
+    }
+
+    requestBodyListenerScope = nextScope;
+
+    if (!shouldCapture) {
+      emitDiagnosticLog("request_body_listener_updated", {
+        enabled: false,
+        reason: captureConsentAccepted ? "capture_paused" : "consent_required",
+      });
+      return;
+    }
+
+    const listenerUrls = getAllowedDomainUrls(ultraXRayMode);
+    extensionApi.webRequest.onBeforeRequest.addListener(
+      requestBodyListener,
+      {
+        urls: listenerUrls,
+      },
+      ["requestBody"]
+    );
+    emitDiagnosticLog("request_body_listener_updated", {
+      enabled: true,
+      ultraXRayMode,
+      domainCount: listenerUrls.length,
+    });
+  };
+
   const getRequestBodyFromCache = async (requestDetails) => {
-    requestBodies = pruneRequestBodies(requestBodies);
+    const captureEligibility = evaluateCaptureEligibility(
+      requestDetails.url,
+      getCaptureModes()
+    );
+    if (!captureEligibility.allowed) {
+      emitDiagnosticLog("request_body_lookup_skipped", {
+        url: requestDetails.url,
+        method: requestDetails.method,
+        reason: captureEligibility.reason,
+      });
+      return "";
+    }
+
+    requestBodies = applyRequestBodyPolicy(requestBodies);
 
     const inMemoryRequest = findRequestBodyMatch(requestBodies, requestDetails);
     if (inMemoryRequest) {
@@ -173,7 +313,7 @@ export async function init() {
       return "";
     }
 
-    const storedRequestBodies = pruneRequestBodies(cachedRequestBodies);
+    const storedRequestBodies = applyRequestBodyPolicy(cachedRequestBodies);
     if (hasObjectChanged(cachedRequestBodies, storedRequestBodies)) {
       await saveRequestBodiesCache(storedRequestBodies);
     }
@@ -203,6 +343,7 @@ export async function init() {
   if (!persistSessionData) {
     await saveRequestBodiesCache([]);
   }
+  syncRequestBodyListener();
   extensionApi.storage?.onChanged?.addListener((changes, areaName) => {
     if (
       areaName === "local" &&
@@ -211,6 +352,35 @@ export async function init() {
       diagnosticModeEnabled = Boolean(
         changes[DIAGNOSTIC_MODE_STORAGE_KEY]?.newValue
       );
+    }
+
+    if (
+      areaName === "local" &&
+      Object.prototype.hasOwnProperty.call(
+        changes,
+        SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY
+      )
+    ) {
+      captureConsentAccepted = Boolean(
+        changes[SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY]?.newValue
+      );
+      syncRequestBodyListener();
+      enforceRequestBodyPolicy().catch((error) => {
+        warnLog("Could not enforce request body policy after consent change", error);
+      });
+    }
+
+    if (
+      areaName === "local" &&
+      Object.prototype.hasOwnProperty.call(changes, "graphxraySession")
+    ) {
+      const session = normalizeSessionState(changes.graphxraySession?.newValue);
+      capturePaused = Boolean(session.modes.capturePaused);
+      ultraXRayMode = Boolean(session.modes.ultraXRayMode);
+      syncRequestBodyListener();
+      enforceRequestBodyPolicy().catch((error) => {
+        warnLog("Could not enforce request body policy after session change", error);
+      });
     }
 
     if (
@@ -239,55 +409,6 @@ export async function init() {
       reason: details?.reason,
     });
   });
-
-  // Capture request bodies for Graph API calls
-  extensionApi.webRequest.onBeforeRequest.addListener(
-    function (details) {
-      emitDiagnosticLog("web_request_intercepted", {
-        url: details.url,
-        method: details.method,
-        hasRequestBody: Boolean(details.requestBody),
-      });
-      if (details.requestBody) {
-        // Store the request body temporarily with URL as key
-        let bodyData = "";
-        let requestBodySource = "unknown";
-        if (details.requestBody.raw) {
-          // Handle raw body data
-          const decoder = new TextDecoder("utf-8");
-          bodyData = details.requestBody.raw
-            .map(data => decoder.decode(data.bytes))
-            .join("");
-          requestBodySource = "raw";
-        } else if (details.requestBody.formData) {
-          // Handle form data
-          bodyData = JSON.stringify(details.requestBody.formData);
-          requestBodySource = "formData";
-        }
-
-        if (bodyData) {
-          persistRequestBody(
-            details.url,
-            details.method,
-            bodyData,
-            details.timeStamp || Date.now()
-          );
-
-          emitDiagnosticLog("request_body_captured", {
-            url: details.url,
-            method: details.method,
-            source: requestBodySource,
-            bodyLength: bodyData.length,
-            bodyPreview: createDiagnosticPreview(bodyData),
-          });
-        }
-      }
-    },
-    {
-      urls: getAllDomainUrls()
-    },
-    ["requestBody"]
-  );
 
   // Send request body data to devtools when available
   addRuntimeMessageListener(async (request) => {

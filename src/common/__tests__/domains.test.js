@@ -1,4 +1,5 @@
 import {
+  getAllowedDomainUrls,
   isAllowedDomain,
   isUltraXRayDomain,
   parseGraphUrl,
@@ -47,5 +48,15 @@ describe("domain allowlisting", () => {
       path: "not-a-valid-url",
       host: "graph.microsoft.com",
     });
+  });
+
+  it("scopes request interception URLs to the active capture mode", () => {
+    const standardUrls = getAllowedDomainUrls(false);
+    const ultraUrls = getAllowedDomainUrls(true);
+
+    expect(standardUrls).toContain("https://graph.microsoft.com/*");
+    expect(standardUrls).not.toContain("https://admin.microsoft.com/*");
+    expect(ultraUrls).toContain("https://admin.microsoft.com/*");
+    expect(ultraUrls.length).toBeGreaterThan(standardUrls.length);
   });
 });

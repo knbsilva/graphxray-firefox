@@ -51,6 +51,7 @@ import {
 import { getSnippetLanguageOption } from "../common/snippetLanguages.js";
 import {
   buildExportArtifact,
+  DEFAULT_EXPORT_SANITIZATION_MODE,
   redactSensitiveText,
   warnLog,
 } from "../common/security.js";
@@ -482,12 +483,25 @@ class Dashboard extends React.Component {
       stack: [],
       diagnosticLogs: [],
       modes: {
-        ...this.state.session.modes,
+        ...createEmptySessionState().modes,
         captureConsentAccepted: false,
       },
       sourceContext: "dashboard",
     });
     await saveGraphXRaySession(nextSession);
+    this.setState((previousState) => ({
+      searchText: "",
+      selectedMethods: [],
+      selectedEntryKey: null,
+      session: {
+        ...createEmptySessionState(),
+        modes: {
+          ...createEmptySessionState().modes,
+          exportSanitizationMode: DEFAULT_EXPORT_SANITIZATION_MODE,
+        },
+      },
+      sessionRetentionMs: DEFAULT_SESSION_RETENTION_MS,
+    }));
   };
 
   acknowledgeCaptureConsent = async () => {

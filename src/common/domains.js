@@ -67,6 +67,9 @@ export const getAllDomainUrls = () => {
   return allDomains.map(domain => `${domain}/*`);
 };
 
+export const getAllowedDomainUrls = (ultraXRayMode = false) =>
+  getAllowedDomains(ultraXRayMode).map((domain) => `${domain}/*`);
+
 // Helper function to parse domain from URL for host determination
 export const parseGraphUrl = (url) => {
   try {

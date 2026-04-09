@@ -630,12 +630,21 @@ class DevTools extends React.Component {
 
   clearLocalCache = async () => {
     await clearGraphXRayLocalData();
+    localStorage.removeItem("graphxray-ultraXRayMode");
+    localStorage.setItem(DIAGNOSTIC_MODE_STORAGE_KEY, JSON.stringify(false));
     this.setState(
       {
+        allowExternalSnippets: false,
         captureConsentAccepted: false,
+        diagnosticMode: false,
+        exportSanitizationMode: DEFAULT_EXPORT_SANITIZATION_MODE,
+        externalSnippetsAcknowledged: false,
+        persistSessionData: true,
+        sessionRetentionMs: 60 * 60 * 1000,
         stack: [],
         diagnosticLogs: [],
         ultraXRayAcknowledged: false,
+        ultraXRayMode: false,
       },
       this.scheduleSessionSync
     );

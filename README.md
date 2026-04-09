@@ -209,6 +209,7 @@ Runs a production-focused dependency audit (`npm audit --omit=dev`) against the 
 - Persisted session retention can be set from the options page to reduce how long captured data remains in local extension storage.
 - In `Local only` mode, Graph X-Ray does not submit captured request payloads to the external DevX snippet service.
 - If you enable external snippets, request payload content for supported languages can be sent to the DevX endpoint for snippet generation.
+- Background request-body correlation now also respects capture consent, pause state, and Ultra X-Ray mode, so Firefox does not keep intercepting the broader host set when those controls are off.
 - Captured exports such as `GraphXRay*.json`, `GraphXRay*.ps1`, `GraphXRay*.py`, and `.har` files should never be committed to the repository.
 - Persisted session data now expires automatically after roughly 60 minutes unless a newer capture refreshes it.
 
@@ -227,7 +228,7 @@ Runs a production-focused dependency audit (`npm audit --omit=dev`) against the 
 - `Save logs` exports the diagnostic session when Diagnostic Mode is enabled, follows the current export sanitization mode, and asks for confirmation because the file can contain sensitive administrative data.
 - `Pause capture` / `Resume capture` controls whether new requests are appended while keeping the current session available for review and export.
 - `Clear local cache` clears the current session plus local request-body correlation cache and legacy local capture state.
-- `Clear local cache` also resets the first-use consent acknowledgement so capture stays blocked until you acknowledge it again.
+- `Clear local cache` also resets first-use consent, external snippets, diagnostic mode, Ultra X-Ray acknowledgements, and related local risk controls back to their safe defaults.
 - Persisted session state is automatically purged after roughly 60 minutes of inactivity.
 - Switching persistence to `Memory only` clears the currently persisted session snapshot from extension storage.
 - The current retention window is also surfaced in the standalone dashboard summary chips.

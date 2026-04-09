@@ -157,3 +157,6 @@
 - Added tests that assert `Local only` blocks DevX for non-local languages while keeping PowerShell local.
 - Added a separate first-enable acknowledgement for external snippet generation so DevX submission is not enabled silently.
 - Aligned `Memory only` mode with the request-body correlation cache so persisted request-body entries are cleared and no longer written while persistence is disabled.
+- Updated the background request-body capture path to respect capture consent, pause state, and Ultra X-Ray mode instead of only filtering after interception.
+- Scoped Firefox `webRequest` request-body interception to the currently active domain set, disabling the listener entirely when capture is blocked and excluding Ultra X-Ray hosts while Ultra mode is off.
+- Hardened `Clear local cache` so it also resets external snippets, diagnostic mode, Ultra X-Ray, and related acknowledgements back to safe defaults instead of leaving risky controls enabled after a purge.

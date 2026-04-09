@@ -149,6 +149,8 @@ const clearGraphXRaySession = async () =>
 const clearGraphXRayLocalData = async () => {
   await saveObjectInLocalStorage({
     ...LEGACY_EXTENSION_STATE,
+    [ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY]: false,
+    [DIAGNOSTIC_MODE_STORAGE_KEY]: false,
     [EXPORT_SANITIZATION_MODE_STORAGE_KEY]: "redacted",
     [EXTERNAL_SNIPPETS_ACKNOWLEDGED_STORAGE_KEY]: false,
     [PERSIST_SESSION_DATA_STORAGE_KEY]: true,
