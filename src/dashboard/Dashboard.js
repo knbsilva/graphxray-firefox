@@ -3,6 +3,7 @@ import "./Dashboard.css";
 import { SearchBox } from "@fluentui/react/lib/SearchBox";
 import { DefaultButton, PrimaryButton } from "@fluentui/react/lib/Button";
 import { Dropdown } from "@fluentui/react/lib/Dropdown";
+import { Toggle } from "@fluentui/react/lib/Toggle";
 import { FontSizes } from "@fluentui/theme";
 import { getTheme } from "@fluentui/react";
 import { AppHeader } from "../components/AppHeader";
@@ -17,6 +18,7 @@ import {
 import {
   hasOptionalPermissionScope,
   removeOptionalPermissionScope,
+  requestOptionalPermissionScope,
 } from "../common/optionalPermissions.js";
 import {
   buildDiagnosticEntry,
@@ -32,6 +34,7 @@ import {
   SESSION_RETENTION_MS_STORAGE_KEY,
   SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY,
   ULTRA_XRAY_ACKNOWLEDGED_STORAGE_KEY,
+  ULTRA_XRAY_MODE_STORAGE_KEY,
   clearGraphXRayLocalData,
   getClearCapturedDataOnStartup,
   getExportSanitizationMode,
@@ -41,10 +44,14 @@ import {
   getSessionRetentionMs,
   getSensitiveCaptureConsentAccepted,
   getUltraXRayAcknowledged,
+  getUltraXRayMode,
   saveGraphXRaySession,
   getAllowExternalSnippets,
   saveSensitiveCaptureConsentAccepted,
   saveAllowExternalSnippets,
+  saveExternalSnippetsAcknowledged,
+  saveUltraXRayAcknowledged,
+  saveUltraXRayMode,
 } from "../common/storage.js";
 import {
   buildDiagnosticExportPayload,
@@ -141,6 +148,7 @@ class Dashboard extends React.Component {
     session.modes.persistSessionData = persistSessionData;
     session.modes.sessionRetentionMs = sessionRetentionMs;
     session.modes.ultraXRayAcknowledged = await getUltraXRayAcknowledged();
+    session.modes.ultraXRayMode = await getUltraXRayMode();
 
     const [externalPermissionGranted, ultraPermissionGranted] =
       await Promise.all([
@@ -155,6 +163,7 @@ class Dashboard extends React.Component {
 
     if (session.modes.ultraXRayMode && !ultraPermissionGranted) {
       session.modes.ultraXRayMode = false;
+      await saveUltraXRayMode(false);
       await saveGraphXRaySession(
         buildSessionSnapshot({
           stack: session.stack,
@@ -163,9 +172,6 @@ class Dashboard extends React.Component {
           sourceContext: "dashboard",
         })
       );
-      if (typeof localStorage !== "undefined") {
-        localStorage.removeItem("graphxray-ultraXRayMode");
-      }
     }
 
     this.setState((previousState) => {
@@ -293,6 +299,14 @@ class Dashboard extends React.Component {
           }
 
           if (
+            Object.prototype.hasOwnProperty.call(changes, ULTRA_XRAY_MODE_STORAGE_KEY)
+          ) {
+            session.modes.ultraXRayMode = Boolean(
+              changes[ULTRA_XRAY_MODE_STORAGE_KEY]?.newValue
+            );
+          }
+
+          if (
             !Object.prototype.hasOwnProperty.call(
               changes,
               GRAPHXRAY_SESSION_STORAGE_KEY
@@ -324,6 +338,10 @@ class Dashboard extends React.Component {
             !Object.prototype.hasOwnProperty.call(
               changes,
               ULTRA_XRAY_ACKNOWLEDGED_STORAGE_KEY
+            ) &&
+            !Object.prototype.hasOwnProperty.call(
+              changes,
+              ULTRA_XRAY_MODE_STORAGE_KEY
             )
           ) {
             return null;
@@ -532,7 +550,6 @@ class Dashboard extends React.Component {
     ]);
     await clearGraphXRayLocalData();
     if (typeof localStorage !== "undefined") {
-      localStorage.removeItem("graphxray-ultraXRayMode");
       localStorage.setItem(DIAGNOSTIC_MODE_STORAGE_KEY, JSON.stringify(false));
     }
     const nextSession = buildSessionSnapshot({
@@ -587,6 +604,82 @@ class Dashboard extends React.Component {
       sourceContext: "dashboard",
     });
     await saveGraphXRaySession(nextSession);
+  };
+
+  onAllowExternalSnippetsToggle = async (_, checked) => {
+    const enabled = Boolean(checked);
+    const acknowledgementRequired =
+      enabled && !this.state.session.modes.externalSnippetsAcknowledged;
+
+    if (
+      acknowledgementRequired &&
+      typeof window !== "undefined" &&
+      !window.confirm(
+        "Enabling external snippet generation allows Graph X-Ray to send supported request payloads to the Microsoft Graph DevX snippet service. Continue?"
+      )
+    ) {
+      return;
+    }
+
+    if (enabled) {
+      const permissionGranted = await requestOptionalPermissionScope(
+        "externalSnippets"
+      );
+      if (acknowledgementRequired) {
+        await saveExternalSnippetsAcknowledged(true);
+      }
+      if (!permissionGranted) {
+        return;
+      }
+    } else {
+      await removeOptionalPermissionScope("externalSnippets");
+    }
+
+    await saveAllowExternalSnippets(enabled);
+  };
+
+  onUltraXRayToggle = async (_, checked) => {
+    const enabled = Boolean(checked);
+    const acknowledgementRequired =
+      enabled && !this.state.session.modes.ultraXRayAcknowledged;
+
+    if (
+      acknowledgementRequired &&
+      typeof window !== "undefined" &&
+      !window.confirm(
+        "Ultra X-Ray exposes undocumented or internal Microsoft admin APIs. These endpoints are unsupported and can surface higher-risk data. Enable Ultra X-Ray?"
+      )
+    ) {
+      return;
+    }
+
+    if (enabled) {
+      const permissionGranted = await requestOptionalPermissionScope("ultraXRay");
+      if (acknowledgementRequired) {
+        await saveUltraXRayAcknowledged(true);
+      }
+      if (!permissionGranted) {
+        return;
+      }
+    } else {
+      await removeOptionalPermissionScope("ultraXRay");
+    }
+
+    await saveUltraXRayMode(enabled);
+    await saveGraphXRaySession(
+      buildSessionSnapshot({
+        stack: [],
+        diagnosticLogs: this.state.session.diagnosticLogs,
+        modes: {
+          ...this.state.session.modes,
+          ultraXRayAcknowledged: enabled
+            ? true
+            : this.state.session.modes.ultraXRayAcknowledged,
+          ultraXRayMode: enabled,
+        },
+        sourceContext: "dashboard",
+      })
+    );
   };
 
   saveScript = async () => {
@@ -857,6 +950,29 @@ class Dashboard extends React.Component {
                       {session.diagnosticLogs.length}
                     </span>
                   </div>
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "16px",
+                    marginTop: "16px",
+                  }}
+                >
+                  <Toggle
+                    label="External snippets"
+                    checked={session.modes.allowExternalSnippets}
+                    onChange={this.onAllowExternalSnippetsToggle}
+                    onText="Enabled"
+                    offText="Local only"
+                  />
+                  <Toggle
+                    label="Ultra X-Ray"
+                    checked={session.modes.ultraXRayMode}
+                    onChange={this.onUltraXRayToggle}
+                    onText="Enabled"
+                    offText="Disabled"
+                  />
                 </div>
                 <div className="DashboardSearch">
                   <div className="DashboardFilters">

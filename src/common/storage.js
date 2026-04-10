@@ -24,6 +24,7 @@ const CLEAR_CAPTURED_DATA_ON_STARTUP_STORAGE_KEY =
   "graphxrayClearCapturedDataOnStartup";
 const SESSION_RETENTION_MS_STORAGE_KEY = "graphxraySessionRetentionMs";
 const ULTRA_XRAY_ACKNOWLEDGED_STORAGE_KEY = "graphxrayUltraXRayAcknowledged";
+const ULTRA_XRAY_MODE_STORAGE_KEY = "graphxrayUltraXRayMode";
 const LEGACY_EXTENSION_STATE = {
   currentMetrics: {
     urls: [],
@@ -132,6 +133,12 @@ const saveUltraXRayAcknowledged = async (acknowledged) =>
   await saveObjectInLocalStorage({
     [ULTRA_XRAY_ACKNOWLEDGED_STORAGE_KEY]: Boolean(acknowledged),
   });
+const getUltraXRayMode = async () =>
+  Boolean(await getObjectFromLocalStorage(ULTRA_XRAY_MODE_STORAGE_KEY));
+const saveUltraXRayMode = async (enabled) =>
+  await saveObjectInLocalStorage({
+    [ULTRA_XRAY_MODE_STORAGE_KEY]: Boolean(enabled),
+  });
 const getGraphXRaySession = async () => {
   const retentionMs = await getSessionRetentionMs();
   const rawSession = await getObjectFromLocalStorage(GRAPHXRAY_SESSION_STORAGE_KEY);
@@ -141,6 +148,7 @@ const getGraphXRaySession = async () => {
   normalizedSession.modes.externalSnippetsAcknowledged =
     await getExternalSnippetsAcknowledged();
   normalizedSession.modes.persistSessionData = await getPersistSessionData();
+  normalizedSession.modes.ultraXRayMode = await getUltraXRayMode();
 
   if (rawSession?.updatedAt && isSessionExpired(rawSession.updatedAt, retentionMs)) {
     await saveObjectInLocalStorage({
@@ -176,6 +184,7 @@ const clearGraphXRayLocalData = async () => {
     [SESSION_RETENTION_MS_STORAGE_KEY]: DEFAULT_SESSION_RETENTION_MS,
     [SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY]: false,
     [ULTRA_XRAY_ACKNOWLEDGED_STORAGE_KEY]: false,
+    [ULTRA_XRAY_MODE_STORAGE_KEY]: false,
     [GRAPHXRAY_SESSION_STORAGE_KEY]: createEmptySessionState(),
   });
 
@@ -240,6 +249,7 @@ export {
   SESSION_RETENTION_MS_STORAGE_KEY,
   SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY,
   ULTRA_XRAY_ACKNOWLEDGED_STORAGE_KEY,
+  ULTRA_XRAY_MODE_STORAGE_KEY,
   getObjectFromLocalStorage,
   saveObjectInLocalStorage,
   commitIfActive,
@@ -267,6 +277,8 @@ export {
   saveSessionRetentionMs,
   getUltraXRayAcknowledged,
   saveUltraXRayAcknowledged,
+  getUltraXRayMode,
+  saveUltraXRayMode,
   getGraphXRaySession,
   saveGraphXRaySession,
   clearGraphXRaySession,

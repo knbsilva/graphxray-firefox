@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Fixed the external snippet permission flow so Firefox optional permission prompts are requested before persistence side effects can break the original user gesture.
+- Added direct `External snippets` and `Ultra X-Ray` toggles to the standalone dashboard and to the options page.
+- Persisted `Ultra X-Ray` mode in extension storage for more reliable cross-page synchronization and permission reconciliation.
+
 ## 2026-03-18
 
 ### Phase 1

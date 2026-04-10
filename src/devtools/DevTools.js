@@ -29,6 +29,7 @@ import {
   SESSION_RETENTION_MS_STORAGE_KEY,
   SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY,
   ULTRA_XRAY_ACKNOWLEDGED_STORAGE_KEY,
+  ULTRA_XRAY_MODE_STORAGE_KEY,
   getClearCapturedDataOnStartup,
   getExportSanitizationMode,
   getAllowExternalSnippets,
@@ -38,6 +39,7 @@ import {
   getSessionRetentionMs,
   getSensitiveCaptureConsentAccepted,
   getUltraXRayAcknowledged,
+  getUltraXRayMode,
   clearGraphXRayLocalData,
   saveAllowExternalSnippets,
   saveExternalSnippetsAcknowledged,
@@ -45,6 +47,7 @@ import {
   saveGraphXRaySession,
   saveSensitiveCaptureConsentAccepted,
   saveUltraXRayAcknowledged,
+  saveUltraXRayMode,
 } from "../common/storage.js";
 import {
   buildDiagnosticEntry,
@@ -86,10 +89,6 @@ const dropdownStyles = {
 class DevTools extends React.Component {
   constructor() {
     super();
-    const savedUltraXRayMode = localStorage.getItem("graphxray-ultraXRayMode");
-    const ultraXRayMode = savedUltraXRayMode
-      ? JSON.parse(savedUltraXRayMode)
-      : false;
     const savedDiagnosticMode = localStorage.getItem(
       DIAGNOSTIC_MODE_STORAGE_KEY
     );
@@ -111,7 +110,7 @@ class DevTools extends React.Component {
       sessionRetentionMs: 60 * 60 * 1000,
       snippetLanguage: "powershell",
       ultraXRayAcknowledged: false,
-      ultraXRayMode,
+      ultraXRayMode: false,
     };
     this.sessionSyncTimeout = null;
     this.removeStorageChangeListener = null;
@@ -128,6 +127,7 @@ class DevTools extends React.Component {
       this.hydratePersistenceMode(),
       this.hydrateSessionRetention(),
       this.hydrateUltraXRayAcknowledgement(),
+      this.hydrateUltraXRayMode(),
     ]);
     this.syncDiagnosticModeState();
     this.addSessionStorageListener();
@@ -201,6 +201,12 @@ class DevTools extends React.Component {
     });
   };
 
+  hydrateUltraXRayMode = async () => {
+    this.setState({
+      ultraXRayMode: await getUltraXRayMode(),
+    });
+  };
+
   reconcileOptionalPermissionStates = async () => {
     const [externalSnippetsAllowed, session, ultraPermissionGranted, externalPermissionGranted] =
       await Promise.all([
@@ -225,7 +231,7 @@ class DevTools extends React.Component {
     }
 
     if (session.modes.ultraXRayMode && !ultraPermissionGranted) {
-      localStorage.removeItem("graphxray-ultraXRayMode");
+      await saveUltraXRayMode(false);
       this.setState(
         {
           ultraXRayMode: false,
@@ -427,6 +433,14 @@ class DevTools extends React.Component {
             ultraXRayAcknowledged: Boolean(
               changes[ULTRA_XRAY_ACKNOWLEDGED_STORAGE_KEY]?.newValue
             ),
+          });
+        }
+
+        if (
+          Object.prototype.hasOwnProperty.call(changes, ULTRA_XRAY_MODE_STORAGE_KEY)
+        ) {
+          this.setState({
+            ultraXRayMode: Boolean(changes[ULTRA_XRAY_MODE_STORAGE_KEY]?.newValue),
           });
         }
 
@@ -710,7 +724,6 @@ class DevTools extends React.Component {
       removeOptionalPermissionScope("ultraXRay"),
     ]);
     await clearGraphXRayLocalData();
-    localStorage.removeItem("graphxray-ultraXRayMode");
     localStorage.setItem(DIAGNOSTIC_MODE_STORAGE_KEY, JSON.stringify(false));
     this.setState(
       {
@@ -1072,8 +1085,10 @@ class DevTools extends React.Component {
 
   onUltraXRayToggle = async (e, checked) => {
     const nextValue = Boolean(checked);
+    const acknowledgementRequired =
+      nextValue && !this.state.ultraXRayAcknowledged;
 
-    if (nextValue && !this.state.ultraXRayAcknowledged) {
+    if (acknowledgementRequired) {
       const confirmed =
         typeof window === "undefined"
           ? false
@@ -1087,14 +1102,13 @@ class DevTools extends React.Component {
         });
         return;
       }
-
-      saveUltraXRayAcknowledged(true).catch((error) => {
-        warnLog("Could not persist Ultra X-Ray acknowledgement", error);
-      });
     }
 
     if (nextValue) {
       const permissionGranted = await requestOptionalPermissionScope("ultraXRay");
+      if (acknowledgementRequired) {
+        await saveUltraXRayAcknowledged(true);
+      }
       if (!permissionGranted) {
         this.recordDiagnostic(
           "ultra_xray_enable_cancelled",
@@ -1109,6 +1123,8 @@ class DevTools extends React.Component {
       await removeOptionalPermissionScope("ultraXRay");
     }
 
+    await saveUltraXRayMode(nextValue);
+
     this.setState(
       {
         ultraXRayAcknowledged: nextValue
@@ -1118,7 +1134,6 @@ class DevTools extends React.Component {
       },
       this.scheduleSessionSync
     );
-    localStorage.setItem("graphxray-ultraXRayMode", JSON.stringify(nextValue));
     this.clearStack();
     this.recordDiagnostic("ultra_xray_toggled", {
       enabled: nextValue,
@@ -1170,9 +1185,10 @@ class DevTools extends React.Component {
 
   onAllowExternalSnippetsToggle = async (e, checked) => {
     const nextValue = Boolean(checked);
+    const acknowledgementRequired =
+      nextValue && !this.state.externalSnippetsAcknowledged;
     if (
-      nextValue &&
-      !this.state.externalSnippetsAcknowledged &&
+      acknowledgementRequired &&
       typeof window !== "undefined" &&
       !window.confirm(
         "Enabling external snippet generation allows Graph X-Ray to send supported request payloads to the Microsoft Graph DevX snippet service. Continue?"
@@ -1188,14 +1204,13 @@ class DevTools extends React.Component {
       return;
     }
 
-    if (nextValue && !this.state.externalSnippetsAcknowledged) {
-      await saveExternalSnippetsAcknowledged(true);
-    }
-
     if (nextValue) {
       const permissionGranted = await requestOptionalPermissionScope(
         "externalSnippets"
       );
+      if (acknowledgementRequired) {
+        await saveExternalSnippetsAcknowledged(true);
+      }
       if (!permissionGranted) {
         this.recordDiagnostic(
           "external_snippets_enable_cancelled",

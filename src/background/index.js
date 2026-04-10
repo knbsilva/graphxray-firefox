@@ -10,8 +10,10 @@ import {
   getRequestBodiesCache,
   PERSIST_SESSION_DATA_STORAGE_KEY,
   SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY,
+  ULTRA_XRAY_MODE_STORAGE_KEY,
   saveObjectInLocalStorage,
   saveRequestBodiesCache,
+  getUltraXRayMode,
 } from "../common/storage.js";
 import {
   DIAGNOSTIC_LOG_MESSAGE_TYPE,
@@ -109,7 +111,7 @@ export async function init() {
   const initialSession = await getGraphXRaySession();
   let captureConsentAccepted = await getSensitiveCaptureConsentAccepted();
   let capturePaused = Boolean(initialSession.modes.capturePaused);
-  let ultraXRayMode = Boolean(initialSession.modes.ultraXRayMode);
+  let ultraXRayMode = await getUltraXRayMode();
 
   const getCaptureModes = () => ({
     captureConsentAccepted,
@@ -407,10 +409,20 @@ export async function init() {
     ) {
       const session = normalizeSessionState(changes.graphxraySession?.newValue);
       capturePaused = Boolean(session.modes.capturePaused);
-      ultraXRayMode = Boolean(session.modes.ultraXRayMode);
       syncRequestBodyListener();
       enforceRequestBodyPolicy().catch((error) => {
         warnLog("Could not enforce request body policy after session change", error);
+      });
+    }
+
+    if (
+      areaName === "local" &&
+      Object.prototype.hasOwnProperty.call(changes, ULTRA_XRAY_MODE_STORAGE_KEY)
+    ) {
+      ultraXRayMode = Boolean(changes[ULTRA_XRAY_MODE_STORAGE_KEY]?.newValue);
+      syncRequestBodyListener();
+      enforceRequestBodyPolicy().catch((error) => {
+        warnLog("Could not enforce request body policy after Ultra X-Ray change", error);
       });
     }
 

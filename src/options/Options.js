@@ -19,6 +19,7 @@ import {
   getSessionRetentionMs,
   getSensitiveCaptureConsentAccepted,
   getUltraXRayAcknowledged,
+  getUltraXRayMode,
   saveExportSanitizationMode,
   saveAllowExternalSnippets,
   saveClearCapturedDataOnStartup,
@@ -26,6 +27,10 @@ import {
   savePersistSessionData,
   saveSessionRetentionMs,
   saveSensitiveCaptureConsentAccepted,
+  saveUltraXRayAcknowledged,
+  saveUltraXRayMode,
+  getGraphXRaySession,
+  saveGraphXRaySession,
 } from "../common/storage.js";
 import { PrimaryButton } from "@fluentui/react/lib/Button";
 import {
@@ -40,6 +45,7 @@ import {
 import {
   DEFAULT_SESSION_RETENTION_MS,
   SESSION_RETENTION_OPTIONS,
+  buildSessionSnapshot,
 } from "../common/session.js";
 
 const theme = getTheme();
@@ -58,6 +64,7 @@ class Options extends React.Component {
       persistSessionData: true,
       sessionRetentionMs: DEFAULT_SESSION_RETENTION_MS,
       ultraXRayAcknowledged: false,
+      ultraXRayMode: false,
     };
   }
 
@@ -71,15 +78,23 @@ class Options extends React.Component {
       persistSessionData: await getPersistSessionData(),
       sessionRetentionMs: await getSessionRetentionMs(),
       ultraXRayAcknowledged: await getUltraXRayAcknowledged(),
+      ultraXRayMode: await getUltraXRayMode(),
     });
     await this.reconcileOptionalPermissionStates();
   }
 
   reconcileOptionalPermissionStates = async () => {
-    const [externalSnippetsAllowed, externalPermissionGranted] =
+    const [
+      externalSnippetsAllowed,
+      externalPermissionGranted,
+      ultraXRayMode,
+      ultraPermissionGranted,
+    ] =
       await Promise.all([
         getAllowExternalSnippets(),
         hasOptionalPermissionScope("externalSnippets"),
+        getUltraXRayMode(),
+        hasOptionalPermissionScope("ultraXRay"),
       ]);
 
     if (externalSnippetsAllowed && !externalPermissionGranted) {
@@ -88,13 +103,21 @@ class Options extends React.Component {
         allowExternalSnippets: false,
       });
     }
+
+    if (ultraXRayMode && !ultraPermissionGranted) {
+      await saveUltraXRayMode(false);
+      this.setState({
+        ultraXRayMode: false,
+      });
+    }
   };
 
   onAllowExternalSnippetsChange = async (_, checked) => {
     const enabled = Boolean(checked);
+    const acknowledgementRequired =
+      enabled && !this.state.externalSnippetsAcknowledged;
     if (
-      enabled &&
-      !this.state.externalSnippetsAcknowledged &&
+      acknowledgementRequired &&
       typeof window !== "undefined" &&
       !window.confirm(
         "Enabling external snippet generation allows Graph X-Ray to send supported request payloads to the Microsoft Graph DevX snippet service. Continue?"
@@ -103,14 +126,13 @@ class Options extends React.Component {
       return;
     }
 
-    if (enabled && !this.state.externalSnippetsAcknowledged) {
-      await saveExternalSnippetsAcknowledged(true);
-    }
-
     if (enabled) {
       const permissionGranted = await requestOptionalPermissionScope(
         "externalSnippets"
       );
+      if (acknowledgementRequired) {
+        await saveExternalSnippetsAcknowledged(true);
+      }
       if (!permissionGranted) {
         return;
       }
@@ -124,6 +146,57 @@ class Options extends React.Component {
       externalSnippetsAcknowledged: enabled
         ? true
         : this.state.externalSnippetsAcknowledged,
+    });
+  };
+
+  onUltraXRayChange = async (_, checked) => {
+    const enabled = Boolean(checked);
+    const acknowledgementRequired =
+      enabled && !this.state.ultraXRayAcknowledged;
+
+    if (
+      acknowledgementRequired &&
+      typeof window !== "undefined" &&
+      !window.confirm(
+        "Ultra X-Ray exposes undocumented or internal Microsoft admin APIs. These endpoints are unsupported and can surface higher-risk data. Enable Ultra X-Ray?"
+      )
+    ) {
+      return;
+    }
+
+    if (enabled) {
+      const permissionGranted = await requestOptionalPermissionScope("ultraXRay");
+      if (acknowledgementRequired) {
+        await saveUltraXRayAcknowledged(true);
+      }
+      if (!permissionGranted) {
+        return;
+      }
+    } else {
+      await removeOptionalPermissionScope("ultraXRay");
+    }
+
+    await saveUltraXRayMode(enabled);
+    const currentSession = await getGraphXRaySession();
+    await saveGraphXRaySession(
+      buildSessionSnapshot({
+        stack: [],
+        diagnosticLogs: currentSession.diagnosticLogs,
+        modes: {
+          ...currentSession.modes,
+          ultraXRayAcknowledged: enabled
+            ? true
+            : this.state.ultraXRayAcknowledged,
+          ultraXRayMode: enabled,
+        },
+        sourceContext: "options",
+      })
+    );
+    this.setState({
+      ultraXRayAcknowledged: enabled
+        ? true
+        : this.state.ultraXRayAcknowledged,
+      ultraXRayMode: enabled,
     });
   };
 
@@ -370,11 +443,18 @@ class Options extends React.Component {
                 }}
               >
                 <h3 style={{ marginTop: 0 }}>Ultra X-Ray safeguard</h3>
+                <Toggle
+                  label="Allow Ultra X-Ray"
+                  checked={this.state.ultraXRayMode}
+                  onChange={this.onUltraXRayChange}
+                  onText="Enabled"
+                  offText="Disabled"
+                />
                 <p style={{ marginBottom: 0, color: "#475569" }}>
                   Ultra X-Ray is disabled by default and requires a warning
-                  acknowledgement the first time you enable it from the DevTools
-                  panel. It can expose undocumented or internal Microsoft admin
-                  APIs that carry higher data-handling risk.
+                  acknowledgement the first time you enable it. It can expose
+                  undocumented or internal Microsoft admin APIs that carry
+                  higher data-handling risk.
                 </p>
                 <p style={{ marginBottom: 0, color: "#475569" }}>
                   Firefox also requests optional host permissions for the
