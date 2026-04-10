@@ -8,6 +8,7 @@
 - Moved `Save request` to an always-visible request summary row instead of hiding it behind the expanded request block.
 - Added live storage synchronization to the guide/options page so toggle and cache-reset state changes reflect immediately.
 - Clarified how to enable `Memory only` mode in the guide/options page.
+- Standardized export file names across entry, session, and diagnostic artifacts to use a clearer `graphxray-{scope}-{artifact}-...-{mode}-{timestamp}` convention.
 
 ## 2026-03-18
 

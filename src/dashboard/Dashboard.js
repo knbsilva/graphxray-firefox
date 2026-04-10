@@ -70,6 +70,7 @@ import {
   redactSensitiveText,
   warnLog,
 } from "../common/security.js";
+import { buildGraphXRayExportFileName } from "../common/exportFileNames.js";
 
 const theme = getTheme();
 const HTTP_METHOD_OPTIONS = ["GET", "POST", "PATCH", "PUT", "DELETE"].map(
@@ -717,7 +718,13 @@ class Dashboard extends React.Component {
           };
     await downloadContentAsFile(
       scriptArtifact.content,
-      `GraphXRaySession.${scriptArtifact.extension || languageOption.fileExt}`,
+      buildGraphXRayExportFileName({
+        scope: "session",
+        artifact: exportMode === "summary" ? "summary" : "script",
+        language,
+        mode: exportMode,
+        extension: scriptArtifact.extension || languageOption.fileExt,
+      }),
       scriptArtifact.mimeType
     );
   };
@@ -745,9 +752,12 @@ class Dashboard extends React.Component {
       }),
       this.state.session.modes.exportSanitizationMode
     );
-    const fileName = `GraphXRayDiagnostics-${new Date()
-      .toISOString()
-      .replace(/[:.]/g, "-")}.${logArtifact.extension || "json"}`;
+    const fileName = buildGraphXRayExportFileName({
+      scope: "diagnostic",
+      artifact: "logs",
+      mode: this.state.session.modes.exportSanitizationMode,
+      extension: logArtifact.extension || "json",
+    });
 
     await downloadContentAsFile(
       logArtifact.content,

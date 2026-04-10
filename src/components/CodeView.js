@@ -6,6 +6,7 @@ import {
 } from "react-syntax-highlighter/dist/esm/styles/hljs";
 import { IconButton } from "@fluentui/react/lib/Button";
 import { isUltraXRayDomain } from "../common/domains.js";
+import { buildGraphXRayExportFileName } from "../common/exportFileNames.js";
 import { downloadContentAsFile } from "../common/session.js";
 import { getSnippetLanguageOption } from "../common/snippetLanguages.js";
 import {
@@ -117,68 +118,6 @@ export const CodeView = ({
       textArea.select();
       document.execCommand('copy');
       document.body.removeChild(textArea);
-    }
-  };
-
-  const createStableHash = (value = "") => {
-    let hash = 2166136261;
-
-    for (let index = 0; index < value.length; index += 1) {
-      hash ^= value.charCodeAt(index);
-      hash = Math.imul(hash, 16777619);
-    }
-
-    return (hash >>> 0).toString(36);
-  };
-
-  const sanitizeFileNameSegment = (value = "") =>
-    value
-      .replace(/^https?:\/\//i, "")
-      .replace(/[^a-z0-9]+/gi, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 80) || "entry";
-
-  const getEntryFileNameBase = (
-    targetUrl = requestUrl || request.displayRequestUrl || "graphxray-entry",
-    targetMethod = requestMethod,
-    extraParts = []
-  ) => {
-    try {
-      const url = new URL(targetUrl);
-      const pathSegments = url.pathname
-        .split("/")
-        .filter(Boolean)
-        .map((segment) => sanitizeFileNameSegment(segment).slice(0, 24))
-        .filter(Boolean)
-        .slice(-4);
-      const queryKeys = [...url.searchParams.keys()]
-        .map((key) => sanitizeFileNameSegment(`q-${key}`).slice(0, 18))
-        .filter(Boolean)
-        .slice(0, 2);
-      const hash = createStableHash(`${targetMethod} ${targetUrl}`).slice(0, 8);
-
-      return [
-        sanitizeFileNameSegment(targetMethod.toUpperCase()),
-        sanitizeFileNameSegment(url.host).slice(0, 32),
-        ...pathSegments,
-        ...queryKeys,
-        ...extraParts.map((part) => sanitizeFileNameSegment(part)).filter(Boolean),
-        hash,
-      ]
-        .filter(Boolean)
-        .join("-")
-        .slice(0, 160);
-    } catch (error) {
-      const hash = createStableHash(`${targetMethod} ${targetUrl}`).slice(0, 8);
-      return [
-        sanitizeFileNameSegment(targetMethod.toUpperCase()),
-        sanitizeFileNameSegment(targetUrl).slice(0, 96),
-        ...extraParts.map((part) => sanitizeFileNameSegment(part)).filter(Boolean),
-        hash,
-      ]
-        .filter(Boolean)
-        .join("-")
-        .slice(0, 160);
     }
   };
 
@@ -328,9 +267,14 @@ export const CodeView = ({
     });
     await downloadContentAsFile(
       exportArtifact.content,
-      `GraphXRay-${suffix}-${getEntryFileNameBase()}.${
-        exportArtifact.extension || descriptor.extension
-      }`,
+      buildGraphXRayExportFileName({
+        scope: "entry",
+        artifact: suffix,
+        method: requestMethod,
+        url: requestUrl,
+        mode: normalizedExportMode,
+        extension: exportArtifact.extension || descriptor.extension,
+      }),
       exportArtifact.mimeType
     );
   };
@@ -359,9 +303,14 @@ export const CodeView = ({
     });
     await downloadContentAsFile(
       exportArtifact.content,
-      `GraphXRay-${suffix}-${getEntryFileNameBase()}.${
-        exportArtifact.extension || descriptor.extension
-      }`,
+      buildGraphXRayExportFileName({
+        scope: "entry",
+        artifact: suffix,
+        method: requestMethod,
+        url: requestUrl,
+        mode: normalizedExportMode,
+        extension: exportArtifact.extension || descriptor.extension,
+      }),
       exportArtifact.mimeType
     );
   };
@@ -371,7 +320,8 @@ export const CodeView = ({
     suffix = "snippet",
     targetUrl = requestUrl || request.displayRequestUrl || "graphxray-entry",
     targetMethod = requestMethod,
-    extraParts = []
+    extraParts = [],
+    targetSource = request.codeSource || ""
   ) => {
     if (!content || !content.trim()) {
       return;
@@ -400,11 +350,17 @@ export const CodeView = ({
           };
     await downloadContentAsFile(
       exportArtifact.content,
-      `GraphXRay-${suffix}-${getEntryFileNameBase(
-        targetUrl,
-        targetMethod,
-        extraParts
-      )}.${exportArtifact.extension || languageOption.fileExt}`,
+      buildGraphXRayExportFileName({
+        scope: "entry",
+        artifact: suffix,
+        method: targetMethod,
+        url: targetUrl,
+        language: snippetLanguage,
+        source: targetSource,
+        extraParts,
+        mode: normalizedExportMode,
+        extension: exportArtifact.extension || languageOption.fileExt,
+      }),
       exportArtifact.mimeType
     );
   };
@@ -1294,7 +1250,8 @@ export const CodeView = ({
                           "snippet",
                           snippet.url,
                           snippet.method,
-                          [snippet.id]
+                          [snippet.id],
+                          snippet.codeSource || request.codeSource || ""
                         );
                       }}
                       styles={{

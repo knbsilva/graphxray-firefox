@@ -79,6 +79,7 @@ import {
   redactSensitiveText,
   warnLog,
 } from "../common/security.js";
+import { buildGraphXRayExportFileName } from "../common/exportFileNames.js";
 
 const theme = getTheme();
 
@@ -619,9 +620,13 @@ class DevTools extends React.Component {
     const languageOpt = getSnippetLanguageOption(this.state.snippetLanguage);
     const exportMode = this.state.exportSanitizationMode;
     const scriptArtifact = this.buildScriptExportArtifact(script, exportMode);
-    const fileName =
-      "GraphXRaySession." +
-      (scriptArtifact.extension || languageOpt.fileExt);
+    const fileName = buildGraphXRayExportFileName({
+      scope: "session",
+      artifact: exportMode === "summary" ? "summary" : "script",
+      language: this.state.snippetLanguage,
+      mode: exportMode,
+      extension: scriptArtifact.extension || languageOpt.fileExt,
+    });
     await downloadContentAsFile(
       scriptArtifact.content,
       fileName,
@@ -707,9 +712,12 @@ class DevTools extends React.Component {
       this.buildCurrentSessionSnapshot(),
       this.state.exportSanitizationMode
     );
-    const fileName = `GraphXRayDiagnostics-${new Date()
-      .toISOString()
-      .replace(/[:.]/g, "-")}.${logArtifact.extension || "json"}`;
+    const fileName = buildGraphXRayExportFileName({
+      scope: "diagnostic",
+      artifact: "logs",
+      mode: this.state.exportSanitizationMode,
+      extension: logArtifact.extension || "json",
+    });
 
     downloadContentAsFile(
       logArtifact.content,
