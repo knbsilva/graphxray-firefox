@@ -19,6 +19,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 UPSTREAM_ISSUE_DRAFT.md
+MANUAL_TEST_PLAN.md
 .tools/
 .npm-cache/
 GraphXRay*.json
