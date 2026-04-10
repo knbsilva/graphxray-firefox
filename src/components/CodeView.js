@@ -674,6 +674,53 @@ export const CodeView = ({
             </div>
           )}
 
+          {request.requestBody && request.requestBody.length > 0 && (
+            <div
+              style={{
+                marginBottom: "10px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "8px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  flexWrap: "wrap",
+                }}
+              >
+                {renderStatusBadge("Request body available", {
+                  backgroundColor: "#dbeafe",
+                  color: "#1d4ed8",
+                })}
+                {renderStatusBadge("Sensitive data", {
+                  backgroundColor: "#fee2e2",
+                  color: "#991b1b",
+                })}
+              </div>
+              <IconButton
+                iconProps={{ iconName: "Download" }}
+                title="Save request"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  saveRequestToFile(request.requestBody);
+                }}
+                styles={{
+                  root: {
+                    minWidth: "28px",
+                    width: "28px",
+                    height: "28px",
+                    color: "#334155",
+                  },
+                }}
+              />
+            </div>
+          )}
+
           {isRequestBodyExpanded && ((request.requestBody && request.requestBody.length > 0) || (request.responseContent && request.responseContent.length > 0)) && (
             <div style={{
               border: "2px solid rgba(0, 0, 0, 0.2)",
@@ -875,23 +922,6 @@ export const CodeView = ({
                               backgroundColor: "#fee2e2",
                               color: "#991b1b",
                             })}
-                            <IconButton
-                              iconProps={{ iconName: "Download" }}
-                              title="Save request"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                saveRequestToFile(request.requestBody);
-                              }}
-                              styles={{
-                                root: {
-                                  minWidth: "28px",
-                                  width: "28px",
-                                  height: "28px",
-                                  color: "#334155",
-                                },
-                              }}
-                            />
                           </div>
                         </div>
                       </div>

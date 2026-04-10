@@ -209,6 +209,7 @@ What this still does not prove:
 - A live spoofing test proving the `url.includes(...)` domain check issue end to end.
 - Browser-console capture of sensitive logs in a real admin session.
 - Real-world behavior of pause, retention, and export flows under incident-style usage.
+- The `Clear captured data when Firefox starts` feature cannot be conclusively validated with the current temporary add-on workflow alone, because `runtime.onStartup` runs on browser startup, while a temporary add-on loaded manually through `about:debugging` is attached only after startup has already passed.
 
 What blocked full closure:
 
@@ -217,6 +218,7 @@ What blocked full closure:
   - a live captured session and deeper structured-clone inspection, or
   - runtime extraction through the extension/browser context
 - The headless `web-ext run` path remained unreliable on this Windows machine because of repeated remote debugger connection failures.
+- The current manual validation path relies on temporary add-on loading. That is good enough for most interactive checks, but it is not a faithful way to validate startup-triggered behavior that depends on the extension already being installed when Firefox launches.
 
 What to do later:
 
@@ -224,6 +226,7 @@ What to do later:
 - Capture DevX traffic using browser/network tooling during those tests.
 - Inspect `browser.storage.local` after representative admin actions, either through runtime extraction or deeper SQLite/structured-clone inspection.
 - Reproduce host-spoofing test cases in a safe environment.
+- Re-test `Clear captured data when Firefox starts` using a persistently installed extension, not a temporary add-on reloaded manually after browser startup.
 
 ## 5. Remote Artifact Inspection Was Not Performed
 

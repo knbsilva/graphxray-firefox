@@ -9,17 +9,29 @@ import {
   MessageBarType,
   Toggle,
 } from "@fluentui/react";
-import { isFirefoxBrowser } from "../common/extensionApi.js";
 import {
+  addStorageChangeListener,
+  isFirefoxBrowser,
+} from "../common/extensionApi.js";
+import {
+  ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY,
   getClearCapturedDataOnStartup,
+  CLEAR_CAPTURED_DATA_ON_STARTUP_STORAGE_KEY,
+  EXTERNAL_SNIPPETS_ACKNOWLEDGED_STORAGE_KEY,
   getExternalSnippetsAcknowledged,
+  EXPORT_SANITIZATION_MODE_STORAGE_KEY,
   getExportSanitizationMode,
   getAllowExternalSnippets,
   getPersistSessionData,
+  PERSIST_SESSION_DATA_STORAGE_KEY,
   getSessionRetentionMs,
+  SESSION_RETENTION_MS_STORAGE_KEY,
   getSensitiveCaptureConsentAccepted,
+  SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY,
   getUltraXRayAcknowledged,
   getUltraXRayMode,
+  ULTRA_XRAY_ACKNOWLEDGED_STORAGE_KEY,
+  ULTRA_XRAY_MODE_STORAGE_KEY,
   saveExportSanitizationMode,
   saveAllowExternalSnippets,
   saveClearCapturedDataOnStartup,
@@ -66,6 +78,7 @@ class Options extends React.Component {
       ultraXRayAcknowledged: false,
       ultraXRayMode: false,
     };
+    this.removeStorageChangeListener = null;
   }
 
   async componentDidMount() {
@@ -80,8 +93,122 @@ class Options extends React.Component {
       ultraXRayAcknowledged: await getUltraXRayAcknowledged(),
       ultraXRayMode: await getUltraXRayMode(),
     });
+    this.addStorageSyncListener();
     await this.reconcileOptionalPermissionStates();
   }
+
+  componentWillUnmount() {
+    if (this.removeStorageChangeListener) {
+      this.removeStorageChangeListener();
+    }
+  }
+
+  addStorageSyncListener = () => {
+    this.removeStorageChangeListener = addStorageChangeListener(
+      (changes, areaName) => {
+        if (areaName !== "local") {
+          return;
+        }
+
+        const nextState = {};
+
+        if (Object.prototype.hasOwnProperty.call(changes, ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY)) {
+          nextState.allowExternalSnippets = Boolean(
+            changes[ALLOW_EXTERNAL_SNIPPETS_STORAGE_KEY]?.newValue
+          );
+        }
+
+        if (
+          Object.prototype.hasOwnProperty.call(
+            changes,
+            EXTERNAL_SNIPPETS_ACKNOWLEDGED_STORAGE_KEY
+          )
+        ) {
+          nextState.externalSnippetsAcknowledged = Boolean(
+            changes[EXTERNAL_SNIPPETS_ACKNOWLEDGED_STORAGE_KEY]?.newValue
+          );
+        }
+
+        if (
+          Object.prototype.hasOwnProperty.call(
+            changes,
+            EXPORT_SANITIZATION_MODE_STORAGE_KEY
+          )
+        ) {
+          nextState.exportSanitizationMode =
+            changes[EXPORT_SANITIZATION_MODE_STORAGE_KEY]?.newValue ||
+            this.state.exportSanitizationMode;
+        }
+
+        if (
+          Object.prototype.hasOwnProperty.call(
+            changes,
+            PERSIST_SESSION_DATA_STORAGE_KEY
+          )
+        ) {
+          nextState.persistSessionData = Boolean(
+            changes[PERSIST_SESSION_DATA_STORAGE_KEY]?.newValue
+          );
+        }
+
+        if (
+          Object.prototype.hasOwnProperty.call(
+            changes,
+            CLEAR_CAPTURED_DATA_ON_STARTUP_STORAGE_KEY
+          )
+        ) {
+          nextState.clearCapturedDataOnStartup = Boolean(
+            changes[CLEAR_CAPTURED_DATA_ON_STARTUP_STORAGE_KEY]?.newValue
+          );
+        }
+
+        if (
+          Object.prototype.hasOwnProperty.call(
+            changes,
+            SESSION_RETENTION_MS_STORAGE_KEY
+          )
+        ) {
+          nextState.sessionRetentionMs =
+            Number(changes[SESSION_RETENTION_MS_STORAGE_KEY]?.newValue) ||
+            this.state.sessionRetentionMs;
+        }
+
+        if (
+          Object.prototype.hasOwnProperty.call(
+            changes,
+            SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY
+          )
+        ) {
+          nextState.captureConsentAccepted = Boolean(
+            changes[SENSITIVE_CAPTURE_CONSENT_STORAGE_KEY]?.newValue
+          );
+        }
+
+        if (
+          Object.prototype.hasOwnProperty.call(
+            changes,
+            ULTRA_XRAY_ACKNOWLEDGED_STORAGE_KEY
+          )
+        ) {
+          nextState.ultraXRayAcknowledged = Boolean(
+            changes[ULTRA_XRAY_ACKNOWLEDGED_STORAGE_KEY]?.newValue
+          );
+        }
+
+        if (
+          Object.prototype.hasOwnProperty.call(changes, ULTRA_XRAY_MODE_STORAGE_KEY)
+        ) {
+          nextState.ultraXRayMode = Boolean(
+            changes[ULTRA_XRAY_MODE_STORAGE_KEY]?.newValue
+          );
+        }
+
+        if (Object.keys(nextState).length > 0) {
+          this.setState(nextState);
+        }
+      }
+    );
+  };
 
   reconcileOptionalPermissionStates = async () => {
     const [
@@ -376,19 +503,20 @@ class Options extends React.Component {
                   borderRadius: "8px",
                 }}
               >
-                <h3 style={{ marginTop: 0 }}>Persistence mode</h3>
+                <h3 style={{ marginTop: 0 }}>Memory-only mode and persistence</h3>
                 <Toggle
-                  label="Persist session data to browser storage"
+                  label="Store captured sessions in browser storage"
                   checked={this.state.persistSessionData}
                   onChange={this.onPersistSessionDataChange}
                   onText="Persisted"
                   offText="Memory only"
                 />
                 <p style={{ marginBottom: 0, color: "#475569" }}>
+                  Turn this off to enable <strong>Memory only</strong> mode.
                   When disabled, Graph X-Ray keeps new captures in the current
                   DevTools session only. The standalone dashboard and persisted
                   session recovery will no longer mirror new entries until
-                  persistence is enabled again.
+                  storage-backed persistence is enabled again.
                 </p>
               </div>
               <div
