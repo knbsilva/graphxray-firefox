@@ -26,6 +26,10 @@ GraphXRay*.json
 GraphXRay*.ps1
 GraphXRay*.py
 GraphXRay*.txt
+graphxray-*.json
+graphxray-*.ps1
+graphxray-*.py
+graphxray-*.txt
 *.har
 /captures/
 /exports/

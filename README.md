@@ -80,7 +80,7 @@ Graph X-Ray can handle sensitive Microsoft 365 administrative data.
 - Persisted session data expires automatically after the configured retention window.
 - `Clear captured data when Firefox starts` purges persisted captured data on browser startup.
 - `Diagnostic Mode` is off by default and its logs are purged when you turn it off.
-- `GraphXRay*.json`, `GraphXRay*.ps1`, `GraphXRay*.py`, and `.har` files should not be committed to the repository.
+- `graphxray-*` exports, legacy `GraphXRay*` exports, and `.har` files should not be committed to the repository.
 
 Export modes:
 

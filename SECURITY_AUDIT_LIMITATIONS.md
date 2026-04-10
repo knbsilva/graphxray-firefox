@@ -79,10 +79,13 @@ What has now been verified:
 - GitHub secret scanning is enabled for the repository.
 - GitHub secret scanning push protection is enabled.
 - The repository currently returns no secret-scanning alerts through the GitHub API.
-- Targeted history inspection did not find versioned GraphXRay export artifacts such as:
-  - `GraphXRay*.json`
-  - `GraphXRay*.ps1`
-  - `GraphXRay*.py`
+- Targeted history inspection did not find versioned Graph X-Ray export artifacts such as:
+  - `graphxray-*.json`
+  - `graphxray-*.ps1`
+  - `graphxray-*.py`
+  - legacy `GraphXRay*.json`
+  - legacy `GraphXRay*.ps1`
+  - legacy `GraphXRay*.py`
   - `.har`
   - `captures/`
   - `exports/`

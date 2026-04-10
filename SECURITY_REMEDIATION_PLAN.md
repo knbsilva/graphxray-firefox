@@ -132,10 +132,14 @@ These items should follow immediately after the critical set and materially redu
 
 15. Add repository guardrails against accidental capture commits.
     - Expand `.gitignore` to cover likely local artifacts:
-      - `GraphXRay*.json`
-      - `GraphXRay*.ps1`
-      - `GraphXRay*.py`
-      - `GraphXRay*.txt`
+      - `graphxray-*.json`
+      - `graphxray-*.ps1`
+      - `graphxray-*.py`
+      - `graphxray-*.txt`
+      - legacy `GraphXRay*.json`
+      - legacy `GraphXRay*.ps1`
+      - legacy `GraphXRay*.py`
+      - legacy `GraphXRay*.txt`
       - `*.har`
       - capture/export folders if introduced
     - Add documentation that captured exports must never be committed.

@@ -24,5 +24,5 @@ sensitive Microsoft 365 administrative data.
 
 - Remove temporary debug statements.
 - Clear local captures and exports created during testing.
-- Confirm no `GraphXRay*` files or `.har` files are staged.
+- Confirm no `graphxray-*`, legacy `GraphXRay*`, or `.har` files are staged.
 - Re-run the normal build/package commands used by the repo.

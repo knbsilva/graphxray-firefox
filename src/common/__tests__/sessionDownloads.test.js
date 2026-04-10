@@ -14,6 +14,8 @@ import { downloadFile } from "../extensionApi.js";
 import { downloadContentAsFile } from "../session.js";
 
 describe("downloadContentAsFile", () => {
+  const testFileName =
+    "graphxray-session-script-powershell-redacted-20260410T120000000Z.txt";
   const originalCreateObjectURL = URL.createObjectURL;
   const originalRevokeObjectURL = URL.revokeObjectURL;
   const originalCreateElement = document.createElement.bind(document);
@@ -47,7 +49,7 @@ describe("downloadContentAsFile", () => {
 
     const result = await downloadContentAsFile(
       "sensitive content",
-      "GraphXRaySession.txt",
+      testFileName,
       "text/plain"
     );
 
@@ -56,7 +58,7 @@ describe("downloadContentAsFile", () => {
     expect(result).toEqual({ status: "cancelled" });
     expect(downloadFile).toHaveBeenCalledWith({
       url: "blob:graphxray-test",
-      filename: "GraphXRaySession.txt",
+      filename: testFileName,
       saveAs: true,
     });
     expect(createElementSpy).not.toHaveBeenCalledWith("a");
@@ -90,7 +92,7 @@ describe("downloadContentAsFile", () => {
 
     const result = await downloadContentAsFile(
       "sensitive content",
-      "GraphXRaySession.txt",
+      testFileName,
       "text/plain"
     );
 
@@ -99,7 +101,7 @@ describe("downloadContentAsFile", () => {
     expect(result).toEqual({ status: "saved" });
     expect(anchor.click).toHaveBeenCalledTimes(1);
     expect(anchor.href).toBe("blob:graphxray-test");
-    expect(anchor.download).toBe("GraphXRaySession.txt");
+    expect(anchor.download).toBe(testFileName);
     expect(appendChildSpy).toHaveBeenCalledWith(anchor);
     expect(removeChildSpy).toHaveBeenCalledWith(anchor);
 
