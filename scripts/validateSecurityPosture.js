@@ -31,6 +31,11 @@ const OPTIONAL_RISKY_HOSTS = [
 ];
 
 const ALLOWED_EXTENSION_PERMISSIONS = ['downloads', 'storage', 'webRequest'];
+const REQUIRED_DATA_COLLECTION_PERMISSIONS = ['none'];
+const OPTIONAL_DATA_COLLECTION_PERMISSIONS = [
+  'personallyIdentifyingInfo',
+  'websiteContent',
+];
 const DISALLOWED_RUNTIME_DEPENDENCIES = [
   '@babel/core',
   '@svgr/webpack',
@@ -148,6 +153,28 @@ const validateManifest = (manifest, violations) => {
     manifest.browser_specific_settings?.gecko?.data_collection_permissions;
   if (!dataCollectionPermissions) {
     violations.push('Missing browser_specific_settings.gecko.data_collection_permissions.');
+  } else {
+    assertSetEquals(
+      dataCollectionPermissions.required || [],
+      REQUIRED_DATA_COLLECTION_PERMISSIONS,
+      'Required data collection permissions',
+      violations
+    );
+    assertSetEquals(
+      dataCollectionPermissions.optional || [],
+      OPTIONAL_DATA_COLLECTION_PERMISSIONS,
+      'Optional data collection permissions',
+      violations
+    );
+  }
+
+  const firefoxMinimumVersion = Number.parseFloat(
+    manifest.browser_specific_settings?.gecko?.strict_min_version || '0'
+  );
+  if (firefoxMinimumVersion < 140) {
+    violations.push(
+      'Firefox strict_min_version must be 140 or newer for built-in data collection consent.'
+    );
   }
 };
 

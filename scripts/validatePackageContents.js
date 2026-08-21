@@ -11,6 +11,12 @@ const DISALLOWED_PATTERNS = [
   /(^|[\\/])\.tools([\\/]|$)/i,
   /(^|[\\/])contentScript\.bundle\.js(\.map|\.LICENSE\.txt)?$/i,
 ];
+const REQUIRED_PACKAGE_FILES = [
+  'LICENSE',
+  'PRIVACY.md',
+  'THIRD_PARTY_NOTICES.md',
+  'manifest.json',
+];
 
 function validatePackageContents(targetDirectory) {
   const root = path.resolve(targetDirectory);
@@ -20,6 +26,12 @@ function validatePackageContents(targetDirectory) {
   }
 
   const violations = [];
+
+  REQUIRED_PACKAGE_FILES.forEach(fileName => {
+    if (!fs.existsSync(path.join(root, fileName))) {
+      violations.push(`missing required package file: ${fileName}`);
+    }
+  });
 
   const walk = (currentDirectory) => {
     fs.readdirSync(currentDirectory, { withFileTypes: true }).forEach((entry) => {

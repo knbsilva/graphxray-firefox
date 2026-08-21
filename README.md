@@ -44,8 +44,9 @@ Run `npm run package` to create:
 
 - `build/packages/graphxray-firefox-v<version>.zip`
 - `build/packages/graphxray-firefox-unsigned-v<version>.xpi`
+- `build/packages/graphxray-firefox-source-v<version>.zip`
 
-The `.xpi` is unsigned. Standard Firefox installation still requires Mozilla signing.
+The `.xpi` is unsigned and intended for AMO self-distribution submission. Standard Firefox installation requires the Mozilla-signed `.xpi` returned after review. See [AMO_SUBMISSION.md](./AMO_SUBMISSION.md).
 
 ## Using Graph X-Ray
 
@@ -70,6 +71,7 @@ Notes:
 - Python, C#, JavaScript, Go, Java, and Objective-C require external snippet generation when supported by DevX.
 - `Local only` mode blocks external snippet generation.
 - When external snippets are enabled, supported request payloads can be sent to the Microsoft Graph DevX snippet service.
+- Firefox requests optional consent for website content and personally identifying information before enabling that transmission.
 
 ## Privacy and data handling
 
@@ -89,6 +91,8 @@ Export modes:
 - `summary`: exports metadata-only summaries
 
 Graph X-Ray does not include an analytics SDK. The only intentional external data transfer path is optional DevX snippet generation.
+
+See [PRIVACY.md](./PRIVACY.md) for the complete privacy disclosure.
 
 ## Firefox permissions model
 
@@ -128,6 +132,10 @@ Graph X-Ray does not include an analytics SDK. The only intentional external dat
 
 - [SECURITY.md](./SECURITY.md)
 - [SAFE_DEBUGGING.md](./SAFE_DEBUGGING.md)
+- [PRIVACY.md](./PRIVACY.md)
+- [AMO_SUBMISSION.md](./AMO_SUBMISSION.md)
+- [AMO_REVIEWER_NOTES.md](./AMO_REVIEWER_NOTES.md)
+- [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)
 - [FUTUREIDEAS.md](./FUTUREIDEAS.md)
 
 ## Archived project docs
@@ -145,3 +153,7 @@ Graph X-Ray does not include an analytics SDK. The only intentional external dat
 ## Acknowledgements
 
 Based on the original project by [merill/graphxray](https://github.com/merill/graphxray).
+
+## License
+
+Licensed under the [GNU Affero General Public License v3.0](./LICENSE), matching the upstream project.

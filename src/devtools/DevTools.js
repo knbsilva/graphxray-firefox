@@ -1199,7 +1199,7 @@ class DevTools extends React.Component {
       acknowledgementRequired &&
       typeof window !== "undefined" &&
       !window.confirm(
-        "Enabling external snippet generation allows Graph X-Ray to send supported request payloads to the Microsoft Graph DevX snippet service. Continue?"
+        "Enabling external snippet generation allows Graph X-Ray to send supported request payloads, including possible website content and identifying data, to the Microsoft Graph DevX snippet service. Continue?"
       )
     ) {
       this.recordDiagnostic(
@@ -1216,9 +1216,6 @@ class DevTools extends React.Component {
       const permissionGranted = await requestOptionalPermissionScope(
         "externalSnippets"
       );
-      if (acknowledgementRequired) {
-        await saveExternalSnippetsAcknowledged(true);
-      }
       if (!permissionGranted) {
         this.recordDiagnostic(
           "external_snippets_enable_cancelled",
@@ -1229,6 +1226,9 @@ class DevTools extends React.Component {
           "warning"
         );
         return;
+      }
+      if (acknowledgementRequired) {
+        await saveExternalSnippetsAcknowledged(true);
       }
     } else {
       await removeOptionalPermissionScope("externalSnippets");

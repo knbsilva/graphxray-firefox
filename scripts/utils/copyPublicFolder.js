@@ -14,7 +14,7 @@ function copyPublicFolder(buildFolder) {
     'popup.html',
     'logo192.png',
     path.join('img', 'icon-16.png'),
-    path.join('img', 'icon-48.png'),
+    path.join('img', 'icon-64.png'),
     path.join('img', 'icon-128.png'),
     path.join('img', 'icon-16.svg'),
   ];
@@ -32,6 +32,13 @@ function copyPublicFolder(buildFolder) {
   });
 
   fs.copyFileSync(paths.manifestJson, path.join(buildFolder, 'manifest.json'));
+  ['LICENSE', 'PRIVACY.md', 'THIRD_PARTY_NOTICES.md'].forEach(fileName => {
+    const sourcePath = path.join(paths.appPath, fileName);
+    if (!fs.existsSync(sourcePath)) {
+      throw new Error(`Missing distribution document: ${fileName}`);
+    }
+    fs.copyFileSync(sourcePath, path.join(buildFolder, fileName));
+  });
 }
 
 module.exports = copyPublicFolder;

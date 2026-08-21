@@ -616,7 +616,7 @@ class Dashboard extends React.Component {
       acknowledgementRequired &&
       typeof window !== "undefined" &&
       !window.confirm(
-        "Enabling external snippet generation allows Graph X-Ray to send supported request payloads to the Microsoft Graph DevX snippet service. Continue?"
+        "Enabling external snippet generation allows Graph X-Ray to send supported request payloads, including possible website content and identifying data, to the Microsoft Graph DevX snippet service. Continue?"
       )
     ) {
       return;
@@ -626,11 +626,11 @@ class Dashboard extends React.Component {
       const permissionGranted = await requestOptionalPermissionScope(
         "externalSnippets"
       );
-      if (acknowledgementRequired) {
-        await saveExternalSnippetsAcknowledged(true);
-      }
       if (!permissionGranted) {
         return;
+      }
+      if (acknowledgementRequired) {
+        await saveExternalSnippetsAcknowledged(true);
       }
     } else {
       await removeOptionalPermissionScope("externalSnippets");

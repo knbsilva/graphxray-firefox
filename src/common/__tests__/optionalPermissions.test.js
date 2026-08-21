@@ -1,12 +1,33 @@
+jest.mock("../extensionApi.js", () => ({
+  containsPermissions: jest.fn(),
+  removePermissions: jest.fn(),
+  requestPermissions: jest.fn(),
+}));
+
 import {
   OPTIONAL_PERMISSION_SCOPES,
   getOptionalPermissionScope,
+  requestOptionalPermissionScope,
 } from "../optionalPermissions.js";
+import { requestPermissions } from "../extensionApi.js";
 
 describe("optional permission scopes", () => {
   it("maps external snippets to the DevX host only", () => {
     expect(getOptionalPermissionScope("externalSnippets")).toEqual({
       origins: ["https://devxapi-func-prod-eastus.azurewebsites.net/*"],
+      data_collection: ["websiteContent", "personallyIdentifyingInfo"],
+    });
+  });
+
+  it("requests the DevX host and built-in Firefox data consent together", async () => {
+    requestPermissions.mockResolvedValue(true);
+
+    await expect(
+      requestOptionalPermissionScope("externalSnippets")
+    ).resolves.toBe(true);
+    expect(requestPermissions).toHaveBeenCalledWith({
+      origins: ["https://devxapi-func-prod-eastus.azurewebsites.net/*"],
+      data_collection: ["websiteContent", "personallyIdentifyingInfo"],
     });
   });
 

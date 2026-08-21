@@ -199,12 +199,20 @@ const openExtensionPage = async (path) => {
   return null;
 };
 
-const normalizePermissionsPayload = (permissions = {}) => ({
-  permissions: Array.isArray(permissions.permissions)
-    ? permissions.permissions
-    : [],
-  origins: Array.isArray(permissions.origins) ? permissions.origins : [],
-});
+const normalizePermissionsPayload = (permissions = {}) => {
+  const normalized = {
+    permissions: Array.isArray(permissions.permissions)
+      ? permissions.permissions
+      : [],
+    origins: Array.isArray(permissions.origins) ? permissions.origins : [],
+  };
+
+  if (Array.isArray(permissions.data_collection)) {
+    normalized.data_collection = permissions.data_collection;
+  }
+
+  return normalized;
+};
 
 const containsPermissions = async (permissions) => {
   if (!extensionApi?.permissions?.contains) {
@@ -343,6 +351,7 @@ export {
   downloadFile,
   getExtensionUrl,
   openExtensionPage,
+  normalizePermissionsPayload,
   containsPermissions,
   requestPermissions,
   removePermissions,

@@ -11,6 +11,7 @@ const { validateSecurityPosture } = require('./validateSecurityPosture');
 const projectRoot = path.resolve(__dirname, '..');
 const buildOutputRoot = path.join(projectRoot, 'build');
 const packagesDir = path.join(buildOutputRoot, 'packages');
+const sourceStageDir = path.join(buildOutputRoot, 'amo-source');
 const browserArg = process.argv.find(arg => arg.startsWith('--browser='));
 const rawTarget = (browserArg ? browserArg.split('=')[1] : 'firefox').toLowerCase();
 
@@ -28,6 +29,7 @@ clearPackagesDirectory();
 buildTarget('firefox');
 validatePackageContents(path.join(buildOutputRoot, 'firefox'));
 packageFirefox(version);
+packageSource(version);
 
 console.log(`Created packaged artifacts in ${path.relative(projectRoot, packagesDir)}.`);
 
@@ -63,6 +65,49 @@ function packageFirefox(currentVersion) {
   });
   fs.rmSync(xpiPath, { force: true });
   copyFileSync(zipPath, xpiPath);
+}
+
+function packageSource(currentVersion) {
+  const sourceArchivePath = path.join(
+    packagesDir,
+    `graphxray-firefox-source-v${currentVersion}.zip`
+  );
+  const sourceDirectories = ['config', 'public', 'scripts', 'src'];
+  const sourceFiles = [
+    'AMO_REVIEWER_NOTES.md',
+    'CHANGELOG.md',
+    'LICENSE',
+    'PRIVACY.md',
+    'README.md',
+    'SAFE_DEBUGGING.md',
+    'THIRD_PARTY_NOTICES.md',
+    'package-lock.json',
+    'package.json',
+  ];
+
+  fs.rmSync(sourceStageDir, { force: true, recursive: true });
+  fs.mkdirSync(sourceStageDir, { recursive: true });
+
+  sourceDirectories.forEach(directoryName => {
+    fs.cpSync(
+      path.join(projectRoot, directoryName),
+      path.join(sourceStageDir, directoryName),
+      { recursive: true }
+    );
+  });
+  sourceFiles.forEach(fileName => {
+    copyFileSync(
+      path.join(projectRoot, fileName),
+      path.join(sourceStageDir, fileName)
+    );
+  });
+
+  createArchive({
+    sourceDir: sourceStageDir,
+    destinationPath: sourceArchivePath,
+    includeRootFolder: false,
+  });
+  fs.rmSync(sourceStageDir, { force: true, recursive: true });
 }
 
 function ensureDirectoryExists(directoryPath, label) {

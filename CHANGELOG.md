@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Prepared version `1.0.6` for private AMO self-distribution with a matching source archive, reviewer notes, privacy disclosure, third-party notices, and the upstream AGPL license.
+- Raised the minimum Firefox version to `140` and connected optional DevX use to Firefox's built-in `websiteContent` and `personallyIdentifyingInfo` data-collection consent.
+- Corrected the manifest icon declaration to use the actual 64-pixel asset.
+- Refreshed vulnerable build and test transitive dependencies so both production-only and full `npm audit` checks report zero known vulnerabilities.
 - Fixed the external snippet permission flow so Firefox optional permission prompts are requested before persistence side effects can break the original user gesture.
 - Added direct `External snippets` and `Ultra X-Ray` toggles to the standalone dashboard and to the options page.
 - Persisted `Ultra X-Ray` mode in extension storage for more reliable cross-page synchronization and permission reconciliation.

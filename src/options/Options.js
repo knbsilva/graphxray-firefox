@@ -247,7 +247,7 @@ class Options extends React.Component {
       acknowledgementRequired &&
       typeof window !== "undefined" &&
       !window.confirm(
-        "Enabling external snippet generation allows Graph X-Ray to send supported request payloads to the Microsoft Graph DevX snippet service. Continue?"
+        "Enabling external snippet generation allows Graph X-Ray to send supported request payloads, including possible website content and identifying data, to the Microsoft Graph DevX snippet service. Continue?"
       )
     ) {
       return;
@@ -257,11 +257,11 @@ class Options extends React.Component {
       const permissionGranted = await requestOptionalPermissionScope(
         "externalSnippets"
       );
-      if (acknowledgementRequired) {
-        await saveExternalSnippetsAcknowledged(true);
-      }
       if (!permissionGranted) {
         return;
+      }
+      if (acknowledgementRequired) {
+        await saveExternalSnippetsAcknowledged(true);
       }
     } else {
       await removeOptionalPermissionScope("externalSnippets");
@@ -452,9 +452,11 @@ class Options extends React.Component {
                   submission.
                 </p>
                 <p style={{ marginBottom: 0, color: "#475569" }}>
-                  Firefox will request the optional DevX host permission the
-                  first time you enable this setting, and remove it again when
-                  you disable the setting or clear the local cache.
+                  Firefox will request the optional DevX host permission and
+                  optional consent for website content and personally
+                  identifying information the first time you enable this
+                  setting. Those permissions are removed when you disable the
+                  setting or clear the local cache.
                 </p>
                 <p style={{ marginBottom: 0, color: "#475569" }}>
                   Current acknowledgement state:{" "}

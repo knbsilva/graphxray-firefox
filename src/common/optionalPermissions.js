@@ -13,6 +13,7 @@ const OPTIONAL_PERMISSION_SCOPES = {
     origins: toOriginPatterns([
       "https://devxapi-func-prod-eastus.azurewebsites.net",
     ]),
+    data_collection: ["websiteContent", "personallyIdentifyingInfo"],
   },
   ultraXRay: {
     origins: toOriginPatterns(GRAPH_DOMAINS.ULTRA_XRAY),
@@ -24,7 +25,7 @@ const getOptionalPermissionScope = (scopeName) =>
 
 const hasOptionalPermissionScope = async (scopeName) => {
   const scope = getOptionalPermissionScope(scopeName);
-  if (!scope.origins.length) {
+  if (!scope.origins.length && !scope.data_collection?.length) {
     return true;
   }
 
@@ -34,7 +35,7 @@ const hasOptionalPermissionScope = async (scopeName) => {
 
 const requestOptionalPermissionScope = async (scopeName) => {
   const scope = getOptionalPermissionScope(scopeName);
-  if (!scope.origins.length) {
+  if (!scope.origins.length && !scope.data_collection?.length) {
     return true;
   }
 
@@ -44,7 +45,7 @@ const requestOptionalPermissionScope = async (scopeName) => {
 
 const removeOptionalPermissionScope = async (scopeName) => {
   const scope = getOptionalPermissionScope(scopeName);
-  if (!scope.origins.length) {
+  if (!scope.origins.length && !scope.data_collection?.length) {
     return true;
   }
 

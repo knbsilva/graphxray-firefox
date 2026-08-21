@@ -1,7 +1,12 @@
 {
   "name": "graphxray-firefox",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "private": true,
+  "license": "AGPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/knbsilva/graphxray-firefox.git"
+  },
   "dependencies": {
     "@fluentui/font-icons-mdl2": "^8.5.62",
     "@fluentui/react": "^8.67.2",
